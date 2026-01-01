@@ -2,5 +2,5 @@
 import os
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bi_service.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Retano.settings')
 application = get_wsgi_application()

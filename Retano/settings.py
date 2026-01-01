@@ -42,8 +42,14 @@ ALLOWED_HOSTS = [
     "www.retano360.com",
 ]
 
-if DEBUG:
-    ALLOWED_HOSTS += ["127.0.0.1", "localhost"]
+DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://retano360.com",
+    "https://www.retano360.com",
+    "https://panel.retano360.com",
+]
 
 
 
@@ -71,6 +77,13 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     
 ]
+
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 
 
 
@@ -105,20 +118,7 @@ WSGI_APPLICATION = 'Retano.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": os.getenv("DB_NAME"),
-#         "USER": os.getenv("DB_USER"),
-#         "PASSWORD": os.getenv("DB_PASSWORD"),
-#         "HOST": os.getenv("DB_HOST"),
-#         "PORT": os.getenv("DB_PORT"),
-#         "CONN_MAX_AGE": 60,
-#         "OPTIONS": {
-#             "sslmode": "require",
-#         },
-#     }
-# }
+
 
 DATABASES = {
     'default': {
@@ -175,7 +175,6 @@ TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
-USE_L10N = True
 
 USE_TZ = True
 
