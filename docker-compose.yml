@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    container_name: retano_web
+    command: gunicorn Retano.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8000"
+
+
+  celery:
+    build: .
+    container_name: retano_celery
+    command: celery -A Retano worker -l info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - web
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: retano_redis
+    restart: unless-stopped
+
+
+
+volumes:
+  static_volume:
+  media_volume:

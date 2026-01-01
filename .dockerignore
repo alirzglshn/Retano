@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+retanoenv/
+venv/
+env/
+.venv/
+
+# Environment files
+.env
+
+# Local database
+db.sqlite3
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker files
+docker-compose.yml
