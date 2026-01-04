@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import "../styles/create.css";
+import "../styles/CampaignCreate.css";
 
 const initialState = {
   name: "",
@@ -48,7 +48,6 @@ export default function CampaignCreate() {
   return (
     <div className="campaign-form" dir="rtl" lang="fa">
       <div className="text-center mb-4 d-flex justify-content-between align-items-center">
-        {/* EXACT structure preserved */}
         <button
           type="button"
           className="btn btn-orange mb-3"

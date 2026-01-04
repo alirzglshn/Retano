@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
-import "../styles/campaign.css";
+import "../styles/CampaignList.css";
 
-// IMPORTANT:
-// We are only changing markup and styling.
-// API, state, and backend connection remain untouched.
 
 export default function CampaignList() {
   const [campaigns, setCampaigns] = useState([]);
