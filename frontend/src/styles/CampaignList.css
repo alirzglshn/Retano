@@ -1,0 +1,51 @@
+body {
+  background-color: #f8f9fa;
+  font-family: IRANSans, Tahoma, sans-serif;
+}
+
+/* Buttons */
+.btn-create {
+  background-color: #ff9800;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+}
+
+.btn-create:hover {
+  background-color: #fb8c00;
+  color: #fff;
+}
+
+.btn-search {
+  background-color: #fb8c00;
+  color: #fff;
+  border: none;
+}
+
+.btn-details {
+  background-color: #fb8c00;
+  color: #fff;
+  font-size: 13px;
+  padding: 5px 12px;
+}
+
+/* Table Head */
+.table-head {
+  font-size: 14px;
+  color: #6c757d;
+  margin-bottom: 10px;
+}
+
+/* Campaign Card */
+.campaign-item {
+  background: #fff;
+  border-radius: 8px;
+  padding: 15px 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.campaign-item .col {
+  font-size: 14px;
+}

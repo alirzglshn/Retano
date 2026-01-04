@@ -26,10 +26,14 @@ staticfiles/
 .DS_Store
 Thumbs.db
 
-# IDEs
+# IDEs 
 .vscode/
 .idea/
 *.swp
 
 # Docker
 *.tar
+
+# Allow React production build
+!frontend/dist/
+!frontend/dist/**

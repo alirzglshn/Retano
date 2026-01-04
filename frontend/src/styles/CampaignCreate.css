@@ -1,0 +1,48 @@
+body {
+    background-color: #f8f9fa;
+    font-family: IRANSans, Tahoma, sans-serif;
+    direction: rtl;
+    padding: 20px;
+}
+
+.campaign-form {
+    max-width: 1300px;
+    margin: 0 auto;
+}
+
+.campaign-form .form-label {
+    font-weight: 500;
+}
+
+.btn-orange {
+    background-color: #ff8c00;
+    border: none;
+    color: #fff;
+}
+
+.btn-orange:hover {
+    background-color: #e07b00;
+}
+
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+.file-input-wrapper {
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+
+.footer-note {
+    font-size: 0.9rem;
+    color: green;
+    margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+    .row > [class*="col-"] {
+        margin-bottom: 15px;
+    }
+}
