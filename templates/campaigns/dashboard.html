@@ -1,0 +1,155 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Retano</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+</head>
+
+<body>
+
+    <div class="app">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand">Retano</div>
+            </div>
+            <h1>نام کاربری:</h1>
+            {{user.username}}
+
+            <ul class="nav-menu">
+                <li class="active">
+                    <a href="{% url 'dashboard-view' %}" style="color: black; text-decoration: none;">داشبورد</a>
+                </li>
+                <li> 
+                    <a href="{% url 'account-page' %}" style="color:black; text-decoration: none"> حساب کاربری </a>
+                </li>
+                <li>
+                    <a href="{% url 'campaign-create' %}" style="color:black; text-decoration: none"> ایجاد کمپین </a>
+                </li>
+                <li>
+                    <a href="{% url 'campaign-list' %}" style="color:black; text-decoration: none;">    فهرست کمپین ها</a>
+                </li>
+                <li>
+                    <a href="{% url 'campaign-excel-files' %}" style="color:black; text-decoration: none;">آپلود فایل‌های لازم</a>
+                </li>
+                <li>
+                    <a href="{% url 'ticket-list' %}" style="color:black; text-decoration: none"> فهرست تیکت ها   </a>
+                </li>
+            </ul>
+
+            
+        </aside>
+
+        <!-- Content -->
+        <main class="content">
+
+            <header class="topbar">
+                <h1>داشبورد</h1>
+                <section class="dashboard-cards">
+               
+                {% if user.is_authenticated %}
+                <form method="POST" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button class="logout-btn" style="border: none;">
+                        <div class="card info-box">
+                            <p><strong> خروج </strong></p>
+                        </div>
+                    </button>
+                </form>
+                {% endif %}
+
+            </section>
+            </header>
+
+            <!-- Dashboard Cards -->
+            
+
+             <section class="charts-section">
+
+               <h1 dir="ltr">Bring Back your customers</h1>
+
+               <h1 dir="ltr">WELCOME TO RETANO</h1>
+
+            </section>
+            <section class="charts-section">
+                <center>
+                    <img src="{% static 'files/logo.png' %}" alt="Retano" >
+                </center>
+               
+
+            </section>
+           
+
+
+        </main>
+
+    </div>
+
+    <script>
+        // Retention Pie Chart
+        const retentionCtx = document.getElementById('retentionChart').getContext('2d');
+        const retentionChart = new Chart(retentionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['مشتریان فعال', 'مشتریان از دست رفته'],
+                datasets: [{
+                    data: [72, 28],
+                    backgroundColor: ['#ff7a00', '#ddd'],
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+
+        // Campaign Bar Chart
+        const campaignCtx = document.getElementById('campaignChart').getContext('2d');
+        const campaignChart = new Chart(campaignCtx, {
+            type: 'bar',
+            data: {
+                labels: ['کمپین زمستانه', 'نوروزی', 'تخفیف ویژه', 'تابستانه'],
+                datasets: [{
+                    label: 'بازدهی %',
+                    data: [85, 78, 92, 60],
+                    backgroundColor: '#ff7a00'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+
+        // Monthly Activity Line Chart
+        const lineCtx = document.getElementById('lineChart').getContext('2d');
+        const lineChart = new Chart(lineCtx, {
+            type: 'line',
+            data: {
+                labels: ['دی', 'بهمن', 'اسفند', 'فروردین', 'اردیبهشت'],
+                datasets: [{
+                    label: 'تعداد پیامک ارسال شده',
+                    data: [400, 550, 300, 700, 650],
+                    borderColor: '#ff7a00',
+                    backgroundColor: 'rgba(255,122,0,0.2)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    </script>
+
+</body>
+
+</html>

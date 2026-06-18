@@ -1,0 +1,9 @@
+Collecting jdatetime
+  Downloading jdatetime-5.2.0-py3-none-any.whl.metadata (5.6 kB)
+Collecting jalali-core>=1.0 (from jdatetime)
+  Downloading jalali_core-1.0.0-py3-none-any.whl.metadata (738 bytes)
+Downloading jdatetime-5.2.0-py3-none-any.whl (12 kB)
+Downloading jalali_core-1.0.0-py3-none-any.whl (3.6 kB)
+Installing collected packages: jalali-core, jdatetime
+
+Successfully installed jalali-core-1.0.0 jdatetime-5.2.0

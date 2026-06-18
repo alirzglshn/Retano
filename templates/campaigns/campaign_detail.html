@@ -1,0 +1,63 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>جزئیات کمپین</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="container my-5">
+    <aside class="sidebar">
+            
+            <ul class="nav-menu">
+                <li class="active">
+                    <a href="{% url 'dashboard-view' %}" style="color: black; text-decoration: none;">داشبورد</a>
+                </li>
+                <li> 
+                    <a href="{% url 'account-page' %}" style="color:black; text-decoration: none"> حساب کاربری </a>
+                </li>
+                <li>
+                    <a href="{% url 'campaign-create' %}" style="color:black; text-decoration: none"> ایجاد کمپین </a>
+                </li>
+                <li>
+                    <a href="{% url 'campaign-list' %}" style="color:black; text-decoration: none"> فهرست کمپین </a>
+                </li>
+                <li>
+                    <a href="{% url 'ticket-list' %}" style="color:black; text-decoration: none"> فهرست تیکت ها   </a>
+                </li>
+            </ul>
+        </aside>
+    <div class="d-flex justify-content-between mb-4">
+        <h4>جزئیات کمپین شماره {{ object.rule_number }}</h4>
+        <div>
+            <a href="{% url 'campaign-update' object.id %}" class="btn btn-warning">ویرایش</a>
+            <a href="{% url 'campaign-delete' object.id %}" class="btn btn-danger">حذف</a>
+        </div>
+    </div>
+
+    <table class="table table-bordered">
+        <tbody>
+            <tr><th>نام کمپین</th><td>{{ object.name }}</td></tr>
+            <tr><th>هفته</th><td>{{ object.week }}</td></tr>
+            <tr><th>مبنای فعال‌سازی</th><td>{{ object.activation_base }}</td></tr>
+            <tr><th>نوع مقایسه</th><td>{{ object.comparison_type }}</td></tr>
+            <tr><th>مقدار مقایسه</th><td>{{ object.comparison_value }}</td></tr>
+            <tr><th>واحد مقدار</th><td>{{ object.value_unit }}</td></tr>
+            <tr><th>دسته مشتریان</th><td>{{ object.customer_type }}</td></tr>
+            <tr><th>جنسیت</th><td>{{ object.gender }}</td></tr>
+            <tr><th>نوع پوست</th><td>{{ object.skin_type }}</td></tr>
+            <tr><th>نوع مو</th><td>{{ object.hair_type }}</td></tr>
+            <tr><th>منبع محصول</th><td>{{ object.product_source }}</td></tr>
+            <tr><th>وضعیت</th><td>{% if object.is_active %}فعال{% else %}غیرفعال{% endif %}</td></tr>
+            <tr><th>الگوی پیام</th><td>{{ object.message_pattern|default:"—" }}</td></tr>
+        </tbody>
+    </table>
+
+    <a href="{% url 'campaign-list' %}" class="btn btn-secondary">بازگشت</a>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,1 @@
+c:\Projects\retanobi\myvenv\Scripts\activate.bat

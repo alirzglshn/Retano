@@ -1,0 +1,214 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if object %}ویرایش کمپین{% else %}ایجاد کمپین{% endif %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <link href="{% static 'css/create.css' %}" rel="stylesheet">
+</head>
+<body>
+
+<div class="campaign-form">
+    <aside class="sidebar">
+        <ul class="nav-menu">
+            <li><a href="{% url 'dashboard-view' %}" style="color: black; text-decoration: none;">داشبورد</a></li>
+            <li><a href="{% url 'account-page' %}" style="color:black; text-decoration: none"> حساب کاربری </a></li>
+            <li class="active"><a href="{% url 'campaign-create' %}" style="color:black; text-decoration: none"> ایجاد کمپین </a></li>
+            <li><a href="{% url 'campaign-list' %}" style="color:black; text-decoration: none"> فهرست کمپین </a></li>
+            <li><a href="{% url 'ticket-list' %}" style="color:black; text-decoration: none"> فهرست تیکت ها </a></li>
+        </ul>
+    </aside>
+    
+    <div class="main-content">
+        <div class="text-center mb-4 d-flex justify-content-between align-items-center">
+            <a class="btn btn-orange mb-3" href="{% url 'campaign-list' %}">مدیریت کمپین‌ها</a>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">نام کمپین</label>
+                    {{ form.name }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">اولویت</label>
+                    {{ form.priority }}
+                </div>
+
+                 
+                <div class="col-md-3">
+                    <label class="form-label">قدرت خرید</label>
+                    {{ form.buying_power }}
+                </div>
+
+                
+                <div class="col-md-3">
+                    <label class="form-label">زمان ارسال پیام</label>
+                    {{ form.send_sms_time }}
+                    <div class="help-text">فرمت: ساعت:دقیقه:ثانیه (مثال: 08:00:00 یا 18:30:00)</div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">مبنای فعال‌سازی</label>
+                    {{ form.activation_base }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">نحوه مقایسه</label>
+                    {{ form.comparison_type }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">مقدار مقایسه</label>
+                    {{ form.comparison_value }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">واحد مقدار</label>
+                    {{ form.value_unit }}
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">دسته مشتریان</label>
+                    {{ form.customer_type }}
+                </div>
+
+
+                <div class="col-md-3">
+                    <label class="form-label">جنسیت</label>
+                    {{ form.gender }}
+                </div>
+
+
+                <div class="col-md-3">
+                    <label class="form-label">درصد تخفیف</label>
+                    {{ form.coupon_discount_percentage }}
+                </div>
+
+
+                <!-- Replace the skin/hair divs with: -->
+                <div class="col-md-3">
+                    <label class="form-label">ویژگی اول محصول</label>
+                    {{ form.first_product_attribute }}
+                    <div class="help-text">برای همه کاربران: همه</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">ویژگی دوم محصول</label>
+                    {{ form.second_product_attribute }}
+                    <div class="help-text">برای همه کاربران: همه</div>
+                </div>
+
+
+
+                <div class="col-md-3">
+                    <label class="form-label">کمپین فعال</label>
+                    {{ form.is_active }}
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <!-- Date Range Picker - Fixed Version -->
+                    <div class="col-md-6">
+                        <label class="form-label">تاریخ شروع کمپین</label>
+                        <input type="date" 
+                                name="campaign_start_date" 
+                                id="campaign_start_date" 
+                                class="form-control" 
+                                value="{{ form.campaign_start_date.value|date:'Y-m-d' }}"
+                                required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">تاریخ پایان کمپین</label>
+                        <input type="date" 
+                                name="campaign_end_date" 
+                                id="campaign_end_date" 
+                                class="form-control" 
+                                value="{{ form.campaign_end_date.value|date:'Y-m-d' }}"
+                                required>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">منبع محصول</label>
+                    {{ form.product_source }}
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">الگوی پیام</label>
+                    {{ form.message_pattern }}
+                </div>
+            </div>
+                     
+           
+
+
+            <div class="mt-4 text-center">
+                <button type="submit" class="btn btn-orange btn-lg w-100">
+                    {% if object %}ذخیره تغییرات{% else %}ایجاد کمپین{% endif %}
+                </button>
+            </div>
+
+
+        </form>
+
+
+        
+
+
+    </div>
+</div>
+
+
+
+<script>
+
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    let startDate = document.getElementById('campaign_start_date').value;
+    let endDate = document.getElementById('campaign_end_date').value;
+    
+    if (startDate && endDate) {
+        if (new Date(startDate) > new Date(endDate)) {
+            alert('تاریخ پایان باید بزرگتر یا مساوی تاریخ شروع باشد');
+            e.preventDefault();
+            return false;
+        }
+    }
+});
+
+
+// validating time format (HH:MM:SS)
+document.querySelector('form').addEventListener('submit', function(e) {
+    let timeInput = document.querySelector('[name="send_sms_time"]');
+    let timeValue = timeInput.value;
+    
+    if (timeValue) {
+        let timePattern = /^([0-1][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])$/;
+        if (!timePattern.test(timeValue)) {
+            alert('فرمت زمان نامعتبر است! فرمت صحیح: HH:MM:SS (مثال: 08:00:00 یا 18:30:00)');
+            e.preventDefault();
+            return false;
+        }
+    }
+});
+
+
+
+document.getElementById('campaign_start_date').addEventListener('change', function() {
+    let startDate = this.value;
+    let endDateInput = document.getElementById('campaign_end_date');
+    if (startDate) {
+        endDateInput.min = startDate;
+        if (endDateInput.value && new Date(endDateInput.value) < new Date(startDate)) {
+            endDateInput.value = startDate;
+        }
+    }
+});
+
+
+</script>
+
+</body>
+</html>

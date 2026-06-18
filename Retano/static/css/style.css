@@ -1,0 +1,511 @@
+/* =========================
+   ROOT VARIABLES
+========================= */
+:root {
+    --primary: #ff7a00;
+    --primary-dark: #e66d00;
+    --secondary: #fff3e8;
+    --bg: #f7f8fb;
+    --white: #ffffff;
+    --text: #333;
+    --muted: #777;
+    --border: #e5e5e5;
+    --success: #2ecc71;
+    --warning: #f1c40f;
+    --danger: #e74c3c;
+    --radius: 16px;
+    --shadow: 0 8px 25px rgba(0,0,0,.06);
+}
+
+/* =========================
+   RESET + BASE
+========================= */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "IRANSans", sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, #f4f4f4, #ffffff);
+    color: var(--text);
+}
+
+/* =========================
+   LAYOUT
+========================= */
+.app {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+.sidebar {
+    width: 20%;
+    background: var(--white);
+    padding: 30px;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 22px;
+    font-weight: bold;
+    color: var(--primary);
+    margin-bottom: 40px;
+}
+
+.brand img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+}
+
+.nav-menu {
+    list-style: none;
+    padding: 0;
+}
+
+.nav-menu li {
+    padding: 14px 18px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.nav-menu li.active,
+.nav-menu li:hover {
+    background: rgba(255, 122, 0, 0.15);
+    color: var(--primary);
+}
+
+/* =========================
+   UPGRADE BOX (SIDEBAR)
+========================= */
+.upgrade-box {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    padding: 20px;
+    border-radius: 22px;
+    color: var(--white);
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+
+.upgrade-box p {
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.upgrade-box button {
+    margin-top: 10px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 14px;
+    background: var(--white);
+    color: var(--primary);
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.upgrade-box button:hover {
+    background: var(--secondary);
+}
+
+/* =========================
+   CONTENT AREA
+========================= */
+.content {
+    width: 80%;
+    padding: 40px;
+}
+
+/* =========================
+   TOPBAR
+========================= */
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.topbar h1 {
+    color: var(--text);
+}
+
+.topbar span {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* =========================
+   CARDS & BOXES
+========================= */
+.card,
+.card-box,
+.info-box,
+.status-card,
+.plan-card,
+.service-box,
+.campaigns-card,
+.alerts-card,
+.ticket-table,
+.ticket-row,
+.payments-table th,
+.payments-table td {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+/* =========================
+   DASHBOARD CARDS
+========================= */
+.dashboard-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.info-box {
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.info-box:hover {
+    transform: translateY(-5px);
+}
+
+.info-box h3 {
+    font-size: 14px;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.info-box p {
+    font-size: 18px;
+    color: var(--primary);
+    font-weight: bold;
+}
+
+/* =========================
+   CHARTS
+========================= */
+.charts-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    margin-bottom: 30px;
+}
+
+.chart-card {
+    padding: 20px;
+}
+
+/* =========================
+   DASHBOARD BOTTOM
+========================= */
+.dashboard-bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.campaigns-card ul,
+.alerts-card ul {
+    list-style: none;
+    margin-top: 10px;
+}
+
+.campaigns-card li,
+.alerts-card li {
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #555;
+}
+
+/* =========================
+   CHAT
+========================= */
+.chat-card {
+    display: flex;
+    flex-direction: column;
+    height: 70vh;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 25px;
+    overflow-y: auto;
+}
+
+.message {
+    max-width: 65%;
+    padding: 14px 18px;
+    border-radius: 18px;
+    margin-bottom: 16px;
+    line-height: 1.8;
+    font-size: 14px;
+}
+
+.message.support {
+    background: #f3f3f3;
+    border-top-right-radius: 6px;
+}
+
+.message.user {
+    background: rgba(255, 122, 0, 0.15);
+    color: #333;
+    margin-right: auto;
+    border-top-left-radius: 6px;
+}
+
+.chat-input {
+    display: flex;
+    gap: 15px;
+    padding: 20px;
+    border-top: 1px solid #eee;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid #ddd;
+    outline: none;
+}
+
+.chat-input input:focus {
+    border-color: var(--primary);
+}
+
+.chat-input button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.chat-input button:hover {
+    background: var(--primary-dark);
+}
+
+/* =========================
+   TICKET INFO & TABLE
+========================= */
+.ticket-info {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 25px;
+}
+.tickets-header {
+    display: flex;                 /* می‌کنه عناصر در یک خط کنار هم */
+    justify-content: space-between; /* عنوان سمت چپ، دکمه سمت راست */
+    align-items: center;           /* تراز عمودی وسط */
+    margin-bottom: 20px;           /* فاصله با کارت‌ها */
+}
+.ticket-status {
+    display: flex;           
+    justify-content: space-between; 
+    gap: 10px;      
+     margin-top: 30px;          
+    margin-bottom: 30px;
+}
+.status-card {
+    flex: 0 0 calc(25% - 7.5px);  
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.info-item {
+    padding: 18px 20px;
+    border-radius: 20px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.info-item .label {
+    font-size: 12px;
+    color: #888;
+}
+
+.info-item strong {
+    font-size: 15px;
+    color: #333;
+}
+
+.info-item.status.active strong { color: var(--primary); }
+.info-item.status.waiting strong { color: #999; }
+.info-item.status.closed strong { color: var(--success); }
+
+.ticket-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    padding: 15px 20px;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+}
+
+.ticket-row.head {
+    font-weight: bold;
+    color: #777;
+}
+
+.ticket-row:last-child {
+    border-bottom: none;
+}
+
+.open { color: var(--primary); }
+.closed { color: #999; }
+
+/* =========================
+   FORMS
+========================= */
+.form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+}
+
+.field.full { grid-column: span 2; }
+
+.field label {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #555;
+}
+
+.field input,
+.field select,
+.field textarea {
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid #ddd;
+    outline: none;
+    transition: 0.3s;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+    border-color: var(--primary);
+}
+
+.submit {
+    grid-column: span 2;
+    margin-top: 20px;
+    padding: 14px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.submit:hover {
+    background: var(--primary-dark);
+}
+
+/* =========================
+   PAYMENT TABLES
+========================= */
+.payments-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 12px;
+}
+
+.payments-table th {
+    text-align: right;
+    font-size: 13px;
+    color: #888;
+    padding-bottom: 10px;
+}
+
+.payments-table td {
+    background: var(--white);
+    padding: 14px;
+    border-radius: 14px;
+    font-size: 14px;
+}
+
+.success { color: var(--success); }
+.pending { color: var(--primary); }
+
+/* =========================
+   PLANS & SERVICES
+========================= */
+.plans, .services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+.plan-card, .service-box {
+    transition: 0.3s;
+}
+
+.plan-card.active { border: 2px solid var(--primary); }
+
+.plan-card h4, .service-box h4 { margin-bottom: 10px; color: var(--text); }
+.plan-card p, .service-box p { color: var(--primary); font-weight: 600; }
+
+.plan-card button, .service-box button {
+    transition: 0.3s;
+}
+
+/* Buttons */
+.btn-orange {
+    background: var(--primary);
+    color: white;
+    border-radius: 14px;
+    padding: 10px 20px;
+}
+
+.btn-orange:hover { background: var(--primary-dark); }
+
+.btn-outline-orange {
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: 12px;
+    padding: 8px 14px;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 768px) {
+    .sidebar { width: 100%; border-left: none; padding: 20px; order: 2; }
+    .content { width: 100%; padding: 20px; }
+    .plans, .services-grid { grid-template-columns: 1fr; }
+}

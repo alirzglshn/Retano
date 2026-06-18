@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تغییر وضعیت تیکت</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+<div class="app">
+    <aside>
+        <ul class="nav-menu">
+                <li class="active">
+                    <a href="{% url 'dashboard-view' %}" style="color: black; text-decoration: none;">داشبورد</a>
+                </li>
+                <li> 
+                    <a href="{% url 'account-page' %}" style="color:black; text-decoration: none"> حساب کاربری </a>
+                </li>
+                <li>
+                    <a href="{% url 'campaign-create' %}" style="color:black; text-decoration: none"> ایجاد کمپین </a>
+                </li>
+                <li>
+                    <a href="{% url 'campaign-list' %}" style="color:black; text-decoration: none"> فهرست کمپین </a>
+                </li>
+                <li>
+                    <a href="{% url 'ticket-list' %}" style="color:black; text-decoration: none"> فهرست تیکت ها   </a>
+                </li>
+            </ul>
+    </aside>
+<main class="content">
+
+<section class="card">
+    <h2>تغییر وضعیت تیکت</h2>
+
+    <form method="post" class="form">
+        {% csrf_token %}
+        <div class="field full">
+            <label>وضعیت جدید</label>
+            {{ form.status }}
+        </div>
+
+        <button class="submit">ثبت تغییرات</button>
+    </form>
+</section>
+
+</main>
+</div>
+</body>
+</html>
