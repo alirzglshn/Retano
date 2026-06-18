@@ -1,0 +1,69 @@
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  | migrations
+  | staticfiles
+  | media
+  | supabasevenv
+  | venv
+  | env
+  | .venv
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+known_django = ["django"]
+known_drf = ["rest_framework", "rest_framework_simplejwt", "drf_spectacular"]
+known_first_party = ["core", "users", "tickets"]
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "THIRDPARTY",
+    "DJANGO",
+    "DRF",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]
+skip = ["migrations", "staticfiles", "media", "venv", "supabasevenv"]
+skip_glob = ["*/migrations/*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.development"
+python_files = ["tests.py", "test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "--reuse-db",
+    "-v",
+]
+markers = [
+    "slow: marks tests as slow (use -m 'not slow' to skip)",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as pure unit tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["core", "users", "tickets"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/test_*.py",
+    "manage.py",
+    "config/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 80

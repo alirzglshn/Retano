@@ -28,7 +28,7 @@ class Ticket(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
     subject = models.CharField(max_length=255)
-    
+
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.OPEN
     )

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from .models import Campaign
 
 
@@ -17,7 +18,7 @@ class CampaignSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "rule_number",
-            "name",  
+            "name",
             "week",
             "activation_base",
             "comparison_type",

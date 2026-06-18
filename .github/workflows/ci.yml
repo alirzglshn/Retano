@@ -1,0 +1,142 @@
+# .github/workflows/ci.yml
+# Runs on every push to develop and every PR targeting main or develop.
+# Jobs: lint (Black + Flake8 + isort) → test (pytest)
+# A failing lint job blocks the test job from running.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - develop
+      - "feature/**"
+      - "hotfix/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 1: Lint
+  # ───────────────────────────────────────────────────────────────────────────
+  lint:
+    name: "Lint — Black, Flake8, isort"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-lint-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-lint-
+
+      - name: Install linting dependencies
+        run: |
+          pip install --upgrade pip
+          pip install black flake8 flake8-bugbear flake8-isort isort
+
+      - name: Check Black formatting
+        run: black --check --diff .
+
+      - name: Check isort import ordering
+        run: isort --check-only --diff .
+
+      - name: Run Flake8
+        run: flake8 .
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Job 2: Test
+  # ───────────────────────────────────────────────────────────────────────────
+  test:
+    name: "Tests — pytest"
+    runs-on: ubuntu-latest
+    needs: lint  # only runs if lint passes
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: retano_test
+          POSTGRES_USER: retano
+          POSTGRES_PASSWORD: retano_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_SECRET_KEY: "ci-test-secret-key-not-used-in-production-replace-me"
+      DB_NAME: retano_test
+      DB_USER: retano
+      DB_PASSWORD: retano_test_password
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_SSLMODE: disable
+      REDIS_URL: redis://127.0.0.1:6379/1
+      KAVENEGAR_API_KEY: "fake-kavenegar-key-for-ci"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-test-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-test-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run database migrations
+        run: python manage.py migrate --settings=config.settings.development
+
+      - name: Run pytest with coverage
+        run: |
+          pytest --cov --cov-report=term-missing --cov-report=xml -v
+
+      - name: Upload coverage report to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

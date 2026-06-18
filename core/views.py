@@ -1,43 +1,48 @@
 # core/views.py
 
 import pandas as pd
-from django.shortcuts import render, redirect
+
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import connection, transaction
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import (
-    CreateView, UpdateView, DeleteView, DetailView, ListView, View,
+    CreateView,
+    DeleteView,
+    DetailView,
+    ListView,
+    UpdateView,
+    View,
 )
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import get_object_or_404
-from django.db import transaction, connection
 
-from .models import (
-    Campaign,
-    Tenant,
-    Coupon,
-    CustomerFileUpload,
-    ProductFileUpload,
-    CouponFileUpload,
-    UsersUnNormalizedDataStaging,
-    ProductsUnNormalizedDataStaging,
-)
 from .forms import (
     CampaignForm,
     ColumnMappingForm,
+    CouponFileUploadForm,
     CustomerFileUploadForm,
     ProductFileUploadForm,
-    CouponFileUploadForm,
+)
+from .models import (
+    Campaign,
+    Coupon,
+    CouponFileUpload,
+    CustomerFileUpload,
+    ProductFileUpload,
+    ProductsUnNormalizedDataStaging,
+    Tenant,
+    UsersUnNormalizedDataStaging,
 )
 from .utils.excel_mapper import (
+    CouponExcelMapper,
     CustomerExcelMapper,
     ProductExcelMapper,
-    CouponExcelMapper,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Campaign CRUD views
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class CampaignCreateView(LoginRequiredMixin, CreateView):
     model = Campaign
@@ -84,9 +89,9 @@ class CampaignListView(LoginRequiredMixin, ListView):
     context_object_name = "campaigns"
 
     def get_queryset(self):
-        return Campaign.objects.filter(
-            tenant__owner=self.request.user
-        ).order_by("-created_at")
+        return Campaign.objects.filter(tenant__owner=self.request.user).order_by(
+            "-created_at"
+        )
 
 
 class CampaignDetailView(LoginRequiredMixin, DetailView):
@@ -104,6 +109,7 @@ class CampaignDeleteView(LoginRequiredMixin, DeleteView):
     Campaigns are completely independent of the flat store.
     Deleting a campaign deletes only the campaign row itself.
     """
+
     model = Campaign
     template_name = "campaigns/campaign_confirm_delete.html"
     success_url = reverse_lazy("campaign-list")
@@ -122,6 +128,7 @@ class CampaignDeleteView(LoginRequiredMixin, DeleteView):
 # Excel file upload — single view, three fully independent pipelines
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class CampaignExcelFilesView(LoginRequiredMixin, View):
     template_name = "campaigns/excel_upload.html"
 
@@ -133,19 +140,19 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
         mapping_form=None,
     ):
         return {
-            "customer_form":  customer_form or CustomerFileUploadForm(),
-            "product_form":   product_form  or ProductFileUploadForm(),
-            "coupon_form":    coupon_form   or CouponFileUploadForm(),
-            "mapping_form":   mapping_form  or ColumnMappingForm(),
+            "customer_form": customer_form or CustomerFileUploadForm(),
+            "product_form": product_form or ProductFileUploadForm(),
+            "coupon_form": coupon_form or CouponFileUploadForm(),
+            "mapping_form": mapping_form or ColumnMappingForm(),
             "customers_instructions": CustomerExcelMapper.INSTRUCTIONS,
-            "customers_fields_desc":  CustomerExcelMapper.FIELDS_DESCRIPTION,
-            "products_instructions":  ProductExcelMapper.INSTRUCTIONS,
-            "products_fields_desc":   ProductExcelMapper.FIELDS_DESCRIPTION,
-            "coupons_instructions":   CouponExcelMapper.INSTRUCTIONS,
-            "coupons_fields_desc":    CouponExcelMapper.FIELDS_DESCRIPTION,
+            "customers_fields_desc": CustomerExcelMapper.FIELDS_DESCRIPTION,
+            "products_instructions": ProductExcelMapper.INSTRUCTIONS,
+            "products_fields_desc": ProductExcelMapper.FIELDS_DESCRIPTION,
+            "coupons_instructions": CouponExcelMapper.INSTRUCTIONS,
+            "coupons_fields_desc": CouponExcelMapper.FIELDS_DESCRIPTION,
             "sample_customers_mapping": CustomerExcelMapper.get_sample_mapping(),
-            "sample_products_mapping":  ProductExcelMapper.get_sample_mapping(),
-            "sample_coupons_mapping":   CouponExcelMapper.get_sample_mapping(),
+            "sample_products_mapping": ProductExcelMapper.get_sample_mapping(),
+            "sample_coupons_mapping": CouponExcelMapper.get_sample_mapping(),
         }
 
     def get(self, request, *args, **kwargs):
@@ -154,8 +161,8 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         uploaded_files = {
             "customers_file": request.FILES.get("customers_file"),
-            "products_file":  request.FILES.get("products_file"),
-            "coupons_file":   request.FILES.get("coupons_file"),
+            "products_file": request.FILES.get("products_file"),
+            "coupons_file": request.FILES.get("coupons_file"),
         }
 
         if not any(uploaded_files.values()):
@@ -163,9 +170,9 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
             return redirect("campaign-excel-files")
 
         customer_form = CustomerFileUploadForm(request.POST, request.FILES)
-        product_form  = ProductFileUploadForm(request.POST,  request.FILES)
-        coupon_form   = CouponFileUploadForm(request.POST,  request.FILES)
-        mapping_form  = ColumnMappingForm(request.POST, uploaded_files=uploaded_files)
+        product_form = ProductFileUploadForm(request.POST, request.FILES)
+        coupon_form = CouponFileUploadForm(request.POST, request.FILES)
+        mapping_form = ColumnMappingForm(request.POST, uploaded_files=uploaded_files)
 
         customer_form_valid = (
             customer_form.is_valid() if uploaded_files["customers_file"] else True
@@ -178,12 +185,14 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
         )
         mapping_form_valid = mapping_form.is_valid()
 
-        if not all([
-            customer_form_valid,
-            product_form_valid,
-            coupon_form_valid,
-            mapping_form_valid,
-        ]):
+        if not all(
+            [
+                customer_form_valid,
+                product_form_valid,
+                coupon_form_valid,
+                mapping_form_valid,
+            ]
+        ):
             return render(
                 request,
                 self.template_name,
@@ -277,9 +286,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
             customers_mapping
         )
         if not is_valid:
-            messages.error(
-                request, f"خطا در نگاشت ستون‌های فایل مشتریان: {error_msg}"
-            )
+            messages.error(request, f"خطا در نگاشت ستون‌های فایل مشتریان: {error_msg}")
             return
 
         with transaction.atomic():
@@ -300,18 +307,22 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
             return
 
         if customers_df["order_date"].isna().any():
-            invalid_rows = (
-                customers_df[customers_df["order_date"].isna()].index.tolist()
-            )
+            invalid_rows = customers_df[
+                customers_df["order_date"].isna()
+            ].index.tolist()
             messages.warning(
                 request,
                 f"اخطار: تاریخ برای ردیف‌های {invalid_rows} قابل پردازش نیست. "
                 "این ردیف‌ها با تاریخ خالی ذخیره می‌شوند.",
             )
 
-        customers_df["internal_id"]         = customers_df["internal_id"].astype(str)
-        customers_df["internal_order_id"]   = customers_df["internal_order_id"].astype(str)
-        customers_df["internal_product_id"] = customers_df["internal_product_id"].astype(str)
+        customers_df["internal_id"] = customers_df["internal_id"].astype(str)
+        customers_df["internal_order_id"] = customers_df["internal_order_id"].astype(
+            str
+        )
+        customers_df["internal_product_id"] = customers_df[
+            "internal_product_id"
+        ].astype(str)
 
         # Allocate globally-unique user_ids
         unique_internal_ids = (
@@ -342,9 +353,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                     "FROM generate_series(1, %s)",
                     [len(new_internal_ids)],
                 )
-                for internal_id, (new_id,) in zip(
-                    new_internal_ids, cursor.fetchall()
-                ):
+                for internal_id, (new_id,) in zip(new_internal_ids, cursor.fetchall()):
                     user_id_mapping[internal_id] = new_id
 
         # Allocate globally-unique order_ids
@@ -385,8 +394,8 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
 
         staging_objects = []
         for _, row in customers_df.iterrows():
-            internal_id         = str(row.get("internal_id", ""))
-            internal_order_id   = str(row.get("internal_order_id", ""))
+            internal_id = str(row.get("internal_id", ""))
+            internal_order_id = str(row.get("internal_order_id", ""))
             internal_product_id = str(row.get("internal_product_id", ""))
 
             if not internal_id or not internal_order_id or not internal_product_id:
@@ -402,11 +411,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                 then_price = 0.0
 
             try:
-                qty = (
-                    int(row["quantity"])
-                    if pd.notna(row.get("quantity"))
-                    else 0
-                )
+                qty = int(row["quantity"]) if pd.notna(row.get("quantity")) else 0
             except (ValueError, TypeError):
                 qty = 0
 
@@ -426,9 +431,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                     internal_order_id=internal_order_id,
                     order_id=order_id_mapping[internal_order_id],
                     order_date=(
-                        row["order_date"]
-                        if pd.notna(row.get("order_date"))
-                        else None
+                        row["order_date"] if pd.notna(row.get("order_date")) else None
                     ),
                     internal_product_id=internal_product_id,
                     product_id=None,
@@ -436,17 +439,15 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                     quantity=qty,
                     subtotal=None,
                     column_mapping={
-                        "customers_file_mapping":  actual_mapping,
+                        "customers_file_mapping": actual_mapping,
                         "customers_index_mapping": customers_mapping,
-                        "uploaded_at":             str(customer_upload.created_at),
+                        "uploaded_at": str(customer_upload.created_at),
                     },
                 )
             )
 
         if not staging_objects:
-            messages.warning(
-                request, "هیچ رکورد معتبری در فایل مشتریان یافت نشد."
-            )
+            messages.warning(request, "هیچ رکورد معتبری در فایل مشتریان یافت نشد.")
             return
 
         try:
@@ -455,9 +456,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
             )
             with connection.cursor() as cursor:
                 cursor.execute("SET LOCAL statement_timeout = '600000';")
-                cursor.execute(
-                    "SELECT flush_customers_staging(%s)", [tenant.id]
-                )
+                cursor.execute("SELECT flush_customers_staging(%s)", [tenant.id])
                 rows_moved = cursor.fetchone()[0] or 0
 
             messages.success(
@@ -465,9 +464,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                 f"{rows_moved} رکورد مشتریان با موفقیت در دیتابیس ذخیره شد.",
             )
         except Exception as e:
-            messages.error(
-                request, f"خطای غیرمنتظره در ذخیره‌سازی مشتریان: {str(e)}"
-            )
+            messages.error(request, f"خطای غیرمنتظره در ذخیره‌سازی مشتریان: {str(e)}")
 
     # ── Products pipeline
     # hair_tag / skin_tag replaced with
@@ -482,9 +479,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
             products_mapping
         )
         if not is_valid:
-            messages.error(
-                request, f"خطا در نگاشت ستون‌های فایل محصولات: {error_msg}"
-            )
+            messages.error(request, f"خطا در نگاشت ستون‌های فایل محصولات: {error_msg}")
             return
 
         with transaction.atomic():
@@ -501,13 +496,11 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
             messages.error(request, f"خطا در پردازش فایل محصولات: {str(e)}")
             return
         except Exception as e:
-            messages.error(
-                request, f"خطای غیرمنتظره در فایل محصولات: {str(e)}"
-            )
+            messages.error(request, f"خطای غیرمنتظره در فایل محصولات: {str(e)}")
             return
 
-        products_df["internal_product_id"] = (
-            products_df["internal_product_id"].astype(str)
+        products_df["internal_product_id"] = products_df["internal_product_id"].astype(
+            str
         )
 
         # Allocate globally-unique product_ids
@@ -532,9 +525,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                 product_id_mapping[internal_product_id] = pid
 
         new_internal_product_ids = [
-            iid
-            for iid in unique_internal_product_ids
-            if iid not in product_id_mapping
+            iid for iid in unique_internal_product_ids if iid not in product_id_mapping
         ]
         if new_internal_product_ids:
             with connection.cursor() as cursor:
@@ -589,19 +580,19 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                     ),
                     # Raw values — NULL if empty, no normalisation
                     first_product_attribute=_attr_value(row, "first_product_attribute"),
-                    second_product_attribute=_attr_value(row, "second_product_attribute"),
+                    second_product_attribute=_attr_value(
+                        row, "second_product_attribute"
+                    ),
                     column_mapping={
-                        "products_file_mapping":  actual_mapping,
+                        "products_file_mapping": actual_mapping,
                         "products_index_mapping": products_mapping,
-                        "uploaded_at":            str(product_upload.created_at),
+                        "uploaded_at": str(product_upload.created_at),
                     },
                 )
             )
 
         if not staging_objects:
-            messages.warning(
-                request, "هیچ رکورد معتبری در فایل محصولات یافت نشد."
-            )
+            messages.warning(request, "هیچ رکورد معتبری در فایل محصولات یافت نشد.")
             return
 
         try:
@@ -610,9 +601,7 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
             )
             with connection.cursor() as cursor:
                 cursor.execute("SET LOCAL statement_timeout = '600000';")
-                cursor.execute(
-                    "SELECT flush_products_staging(%s)", [tenant.id]
-                )
+                cursor.execute("SELECT flush_products_staging(%s)", [tenant.id])
                 rows_moved = cursor.fetchone()[0] or 0
 
             messages.success(
@@ -620,14 +609,13 @@ class CampaignExcelFilesView(LoginRequiredMixin, View):
                 f"{rows_moved} رکورد محصولات با موفقیت در دیتابیس ذخیره شد.",
             )
         except Exception as e:
-            messages.error(
-                request, f"خطای غیرمنتظره در ذخیره‌سازی محصولات: {str(e)}"
-            )
+            messages.error(request, f"خطای غیرمنتظره در ذخیره‌سازی محصولات: {str(e)}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dashboard
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def DashBoardView(request):
     if not request.user.is_authenticated:

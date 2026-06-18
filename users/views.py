@@ -1,14 +1,12 @@
 # users/views.py
 
-from django.contrib.auth.views import LoginView, LogoutView
-from django.views.generic import CreateView
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView, LogoutView
+from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
-from .forms import UserUpdateForm
-from django.shortcuts import render  , redirect
+from django.views.generic import CreateView
 
-
-from .forms import LoginForm, RegisterForm
+from .forms import LoginForm, RegisterForm, UserUpdateForm
 
 
 class UserLoginView(LoginView):
@@ -23,9 +21,9 @@ class UserLogoutView(LogoutView):
 class UserRegisterView(CreateView):
     template_name = "users/register.html"
     form_class = RegisterForm
-    success_url = reverse_lazy("login") 
-    
-    
+    success_url = reverse_lazy("login")
+
+
 @login_required
 def AccountDetail(request):
     user = request.user

@@ -1,7 +1,7 @@
 # core/models.py
 
-from django.db import models
 from django.conf import settings
+from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -23,6 +23,7 @@ class Tenant(models.Model):
 # Coupon
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class Coupon(models.Model):
     status = models.CharField(default="available")
     coupon_code = models.TextField(unique=True, max_length=2000)
@@ -36,6 +37,7 @@ class Coupon(models.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 # File Upload Models
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class CustomerFileUpload(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
@@ -89,11 +91,10 @@ class CouponFileUpload(models.Model):
 # Campaign
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class Campaign(models.Model):
 
-    COUPON_DISCOUNT_PERCENTAGE_CHOICES = [
-        (i, f"{i}%") for i in range(0, 101)
-    ]
+    COUPON_DISCOUNT_PERCENTAGE_CHOICES = [(i, f"{i}%") for i in range(0, 101)]
 
     ACTIVATION_BASE_CHOICES = [
         ("همیشه", "همیشه"),
@@ -171,31 +172,48 @@ class Campaign(models.Model):
     send_sms_time = models.TimeField(default="11:00:00")
 
     activation_base = models.CharField(
-        blank=True, null=True, max_length=50,
-        choices=ACTIVATION_BASE_CHOICES, default="همیشه",
+        blank=True,
+        null=True,
+        max_length=50,
+        choices=ACTIVATION_BASE_CHOICES,
+        default="همیشه",
     )
     comparison_type = models.CharField(
-        null=True, blank=True, max_length=50,
-        choices=COMPARISON_TYPE_CHOICES, default="بزرگتر از",
+        null=True,
+        blank=True,
+        max_length=50,
+        choices=COMPARISON_TYPE_CHOICES,
+        default="بزرگتر از",
     )
     comparison_value = models.IntegerField(null=True, blank=True, default=1)
     value_unit = models.CharField(
-        null=True, blank=True, max_length=50,
-        choices=VALUE_UNIT_CHOICES, default="روز",
+        null=True,
+        blank=True,
+        max_length=50,
+        choices=VALUE_UNIT_CHOICES,
+        default="روز",
     )
     priority = models.CharField(
-        max_length=20, choices=PRIORITIES_CHOICES, default="خیلی بالا",
+        max_length=20,
+        choices=PRIORITIES_CHOICES,
+        default="خیلی بالا",
     )
     buying_power = models.CharField(
-        max_length=20, choices=BUYING_POWER_CHOICES, default="همه",
+        max_length=20,
+        choices=BUYING_POWER_CHOICES,
+        default="همه",
     )
     customer_type = models.CharField(
-        max_length=50, choices=CUSTOMER_TYPE_CHOICES, default="همه",
+        max_length=50,
+        choices=CUSTOMER_TYPE_CHOICES,
+        default="همه",
     )
     gender = models.CharField(
-        max_length=10, choices=GENDER_CHOICES, default="همه",
+        max_length=10,
+        choices=GENDER_CHOICES,
+        default="همه",
     )
-    
+
     first_product_attribute = models.CharField(
         max_length=255,
         default="همه",
@@ -207,9 +225,10 @@ class Campaign(models.Model):
         default="همه",
         blank=True,
         verbose_name="ویژگی دوم محصول",
-    )  
+    )
     product_source = models.CharField(
-        max_length=100, choices=PRODUCT_SOURCE_CHOICES,
+        max_length=100,
+        choices=PRODUCT_SOURCE_CHOICES,
         default="اولین محصول پرفروش",
     )
     is_active = models.BooleanField(default=True)
@@ -238,6 +257,7 @@ class Campaign(models.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 # Users flat store  (customers-file pipeline)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class UsersUnNormalizedData(models.Model):
     """
@@ -332,6 +352,7 @@ class UsersUnNormalizedDataStaging(models.Model):
 # Products flat store  (products-file pipeline)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class ProductsUnNormalizedData(models.Model):
     """
     Permanent flat store for the products-file pipeline.
@@ -408,6 +429,7 @@ class ProductsUnNormalizedDataStaging(models.Model):
 # Error Log
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class ErrorLog(models.Model):
 
     SEVERITY_CHOICES = [
@@ -434,20 +456,27 @@ class ErrorLog(models.Model):
         help_text="The tenant this error belongs to, if applicable",
     )
     source = models.CharField(
-        max_length=50, choices=SOURCE_CHOICES, default="other",
+        max_length=50,
+        choices=SOURCE_CHOICES,
+        default="other",
         help_text="Which part of the system raised this error",
     )
     severity = models.CharField(
-        max_length=20, choices=SEVERITY_CHOICES, default="error",
+        max_length=20,
+        choices=SEVERITY_CHOICES,
+        default="error",
         help_text="How severe is this error",
     )
     error_code = models.CharField(
-        max_length=100, null=True, blank=True,
+        max_length=100,
+        null=True,
+        blank=True,
         help_text="Machine-readable error code, e.g. NO_COUPON_FOUND",
     )
     message = models.TextField(help_text="Human-readable error message")
     context = models.JSONField(
-        default=dict, blank=True,
+        default=dict,
+        blank=True,
         help_text="Structured data relevant to this error",
     )
     resolved = models.BooleanField(

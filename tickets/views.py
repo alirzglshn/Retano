@@ -1,20 +1,20 @@
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.generic import (
     CreateView,
-    UpdateView,
     DetailView,
     ListView,
+    UpdateView,
 )
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import get_object_or_404, redirect
-from django.db.models import Prefetch
 
-from .models import Ticket, TicketMessage
 from .forms import (
     TicketCreateForm,
     TicketReplyForm,
     TicketStatusUpdateForm,
 )
+from .models import Ticket, TicketMessage
 
 
 class TicketListView(LoginRequiredMixin, ListView):
@@ -24,9 +24,7 @@ class TicketListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        return Ticket.objects.filter(
-            user=self.request.user
-        ).order_by("-created_at")
+        return Ticket.objects.filter(user=self.request.user).order_by("-created_at")
 
 
 class TicketCreateView(LoginRequiredMixin, CreateView):
@@ -58,16 +56,14 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "ticket"
 
     def get_object(self):
-        return get_object_or_404(
-            Ticket,
-            pk=self.kwargs["pk"],
-            user=self.request.user
-        )
+        return get_object_or_404(Ticket, pk=self.kwargs["pk"], user=self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        context["messages"] = self.object.messages.select_related("user").order_by("created_at")
+        context["messages"] = self.object.messages.select_related("user").order_by(
+            "created_at"
+        )
 
         context["reply_form"] = TicketReplyForm()
         context["status_form"] = TicketStatusUpdateForm(instance=self.object)
@@ -88,7 +84,6 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
             message.is_staff_reply = request.user.is_staff
             message.save()
 
-
         return redirect("ticket-detail", pk=self.object.pk)
 
 
@@ -98,13 +93,7 @@ class TicketStatusUpdateView(LoginRequiredMixin, UpdateView):
     template_name = "tickets/ticket-status-update.html"
 
     def get_object(self):
-        return get_object_or_404(
-            Ticket,
-            pk=self.kwargs["pk"],
-            user=self.request.user
-        )
+        return get_object_or_404(Ticket, pk=self.kwargs["pk"], user=self.request.user)
 
     def get_success_url(self):
         return reverse_lazy("ticket-detail", kwargs={"pk": self.object.pk})
-
-
