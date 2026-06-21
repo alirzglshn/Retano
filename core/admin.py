@@ -1,16 +1,16 @@
 from django.contrib import admin
+
 from .models import (
     Campaign,
-    Tenant,
     Coupon,
-    CustomerFileUpload,
-    ProductFileUpload,
     CouponFileUpload,
-    UsersUnNormalizedDataStaging,
+    CustomerFileUpload,
+    ErrorLog,
+    ProductFileUpload,
     ProductsUnNormalizedDataStaging,
-    ErrorLog
+    Tenant,
+    UsersUnNormalizedDataStaging,
 )
-
 
 # Register your models here.
 

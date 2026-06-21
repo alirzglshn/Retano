@@ -7,7 +7,6 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        # ── Update this to your actual last migration name ──────────────────
         ("core", "0043_remove_unnormalizeddata_tag"),
     ]
 
