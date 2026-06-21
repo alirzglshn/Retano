@@ -4,6 +4,8 @@ from django.urls import include, path
 
 from rest_framework.routers import DefaultRouter
 
+from .views import CampaignMetaView, CampaignViewSet
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DefaultRouter — registers ViewSets
 # Generates:
@@ -17,17 +19,19 @@ from rest_framework.routers import DefaultRouter
 # ─────────────────────────────────────────────────────────────────────────────
 
 router = DefaultRouter()
-
-# ViewSets will be imported and registered here in their respective phases.
-# Phase 4: router.register(r"campaigns", CampaignViewSet, basename="campaign")
+router.register(r"campaigns", CampaignViewSet, basename="campaign")
 
 urlpatterns = [
+    # ── Campaign meta (Phase 4) ───────────────────────────────────────────
+    # MUST be declared before the router include below: the router's
+    # detail route (campaigns/{id}/) has no numeric restriction on the
+    # lookup value, so "campaigns/meta/" would otherwise be matched as
+    # campaigns/<pk=meta>/ and routed to retrieve() instead of this view.
+    path("campaigns/meta/", CampaignMetaView.as_view(), name="campaign-meta"),
     # Router-generated URLs
     path("", include(router.urls)),
     # ── Dashboard (Phase 7) ───────────────────────────────────────────────
     # path("dashboard/", DashboardView.as_view(), name="api-dashboard"),
-    # ── Campaign meta (Phase 4) ───────────────────────────────────────────
-    # path("campaigns/meta/", CampaignMetaView.as_view(), name="campaign-meta"),
     # ── Reports (Phase 5) ─────────────────────────────────────────────────
     # path("reports/trends/", TrendsView.as_view(), name="report-trends"),
     # path("reports/segments/", SegmentsView.as_view(), name="report-segments"),

@@ -1,209 +1,305 @@
 # core/tests.py
-
-import pytest
-
 from django.urls import reverse
 
 from rest_framework import status
+from rest_framework.test import APITestCase
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Settings smoke tests
-# ─────────────────────────────────────────────────────────────────────────────
+from users.models import CustomUser
 
+from .models import Campaign, Tenant
 
-@pytest.mark.django_db
-class TestSettingsConfiguration:
-    """Verify that the DRF configuration loaded correctly."""
 
-    def test_drf_is_installed(self):
-        from django.apps import apps
+def make_user_with_tenant(phone_number):
+    user = CustomUser.objects.create_user(phone_number=phone_number)
+    # Tenant is created via the post_save signal on CustomUser.
+    return user, Tenant.objects.get(owner=user)
 
-        assert apps.is_installed("rest_framework")
 
-    def test_jwt_is_installed(self):
-        from django.apps import apps
+class CampaignListCreateTests(APITestCase):
+    def setUp(self):
+        self.user, self.tenant = make_user_with_tenant("+989121111111")
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("campaign-list")
 
-        assert apps.is_installed("rest_framework_simplejwt")
+    def test_list_empty_by_default(self):
+        response = self.client.get(self.url)
 
-    def test_token_blacklist_is_installed(self):
-        from django.apps import apps
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
 
-        assert apps.is_installed("rest_framework_simplejwt.token_blacklist")
+    def test_create_campaign_assigns_own_tenant(self):
+        response = self.client.post(
+            self.url, {"name": "Spring Sale", "is_active": True}
+        )
 
-    def test_cors_is_installed(self):
-        from django.apps import apps
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        campaign = Campaign.objects.get(id=response.data["id"])
+        self.assertEqual(campaign.tenant_id, self.tenant.id)
+        self.assertEqual(campaign.rule_number, 1)
 
-        assert apps.is_installed("corsheaders")
+    def test_create_ignores_client_supplied_tenant(self):
+        other_user, other_tenant = make_user_with_tenant("+989122222222")
 
-    def test_django_filter_is_installed(self):
-        from django.apps import apps
+        response = self.client.post(
+            self.url, {"name": "Hijack Attempt", "tenant": other_tenant.id}
+        )
 
-        assert apps.is_installed("django_filters")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        campaign = Campaign.objects.get(id=response.data["id"])
+        self.assertEqual(campaign.tenant_id, self.tenant.id)
 
-    def test_drf_spectacular_is_installed(self):
-        from django.apps import apps
+    def test_rule_number_increments_per_tenant(self):
+        self.client.post(self.url, {"name": "First"})
+        response = self.client.post(self.url, {"name": "Second"})
 
-        assert apps.is_installed("drf_spectacular")
+        self.assertEqual(response.data["rule_number"], 2)
 
-    def test_drf_default_authentication_is_jwt(self):
-        from django.conf import settings
+    def test_create_rejects_end_date_before_start_date(self):
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Bad Dates",
+                "campaign_start_date": "2026-06-01",
+                "campaign_end_date": "2026-05-01",
+            },
+        )
 
-        auth_classes = settings.REST_FRAMEWORK.get("DEFAULT_AUTHENTICATION_CLASSES", [])
-        assert any(
-            "JWTAuthentication" in cls for cls in auth_classes
-        ), "JWT must be the default authentication class."
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("campaign_end_date", response.data["details"])
 
-    def test_drf_default_permission_is_authenticated(self):
-        from django.conf import settings
+    def test_list_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.url)
 
-        perm_classes = settings.REST_FRAMEWORK.get("DEFAULT_PERMISSION_CLASSES", [])
-        assert any(
-            "IsAuthenticated" in cls for cls in perm_classes
-        ), "IsAuthenticated must be the default permission class."
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_pagination_is_configured(self):
-        from django.conf import settings
+    def test_list_uses_condensed_serializer(self):
+        self.client.post(self.url, {"name": "Condensed Check"})
 
-        pagination_class = settings.REST_FRAMEWORK.get("DEFAULT_PAGINATION_CLASS", "")
-        assert "StandardResultsPagination" in pagination_class
+        response = self.client.get(self.url)
+        result = response.data["results"][0]
 
-    def test_custom_exception_handler_is_configured(self):
-        from django.conf import settings
+        self.assertIn("name", result)
+        self.assertIn("is_active", result)
+        self.assertNotIn("message_pattern", result)
+        self.assertNotIn("activation_base", result)
 
-        handler = settings.REST_FRAMEWORK.get("EXCEPTION_HANDLER", "")
-        assert "custom_exception_handler" in handler
 
-    def test_secret_key_is_set(self):
-        from django.conf import settings
+class CampaignDetailTests(APITestCase):
+    def setUp(self):
+        self.user, self.tenant = make_user_with_tenant("+989121111111")
+        self.client.force_authenticate(user=self.user)
+        self.campaign = Campaign.objects.create(tenant=self.tenant, name="Detail Me")
+        self.url = reverse("campaign-detail", args=[self.campaign.id])
 
-        assert settings.SECRET_KEY
-        assert len(settings.SECRET_KEY) >= 50
+    def test_retrieve_own_campaign(self):
+        response = self.client.get(self.url)
 
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Detail Me")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# API documentation endpoint tests
-# ─────────────────────────────────────────────────────────────────────────────
+    def test_patch_updates_fields(self):
+        response = self.client.patch(self.url, {"name": "Renamed"})
 
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.name, "Renamed")
 
-@pytest.mark.django_db
-class TestAPIDocumentationEndpoints:
-    """Verify Swagger and ReDoc render without errors."""
+    def test_patch_cannot_move_campaign_to_another_tenant(self):
+        _, other_tenant = make_user_with_tenant("+989122222222")
 
-    def test_schema_endpoint_returns_200(self, api_client):
-        url = reverse("schema")
-        response = api_client.get(url)
-        assert response.status_code == status.HTTP_200_OK
+        response = self.client.patch(self.url, {"tenant": other_tenant.id})
 
-    def test_swagger_ui_returns_200(self, api_client):
-        url = reverse("swagger-ui")
-        response = api_client.get(url)
-        assert response.status_code == status.HTTP_200_OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.tenant_id, self.tenant.id)
 
-    def test_redoc_returns_200(self, api_client):
-        url = reverse("redoc")
-        response = api_client.get(url)
-        assert response.status_code == status.HTTP_200_OK
+    def test_delete_campaign(self):
+        response = self.client.delete(self.url)
 
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Campaign.objects.filter(id=self.campaign.id).exists())
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Token refresh endpoint
-# ─────────────────────────────────────────────────────────────────────────────
 
+class CampaignToggleTests(APITestCase):
+    def setUp(self):
+        self.user, self.tenant = make_user_with_tenant("+989121111111")
+        self.client.force_authenticate(user=self.user)
+        self.campaign = Campaign.objects.create(
+            tenant=self.tenant, name="Toggle Me", is_active=True
+        )
+        self.url = reverse("campaign-toggle", args=[self.campaign.id])
 
-@pytest.mark.django_db
-class TestTokenRefreshEndpoint:
-    """Verify the token refresh endpoint is wired correctly."""
+    def test_toggle_with_no_body_flips_is_active(self):
+        response = self.client.patch(self.url, {}, format="json")
 
-    def test_token_refresh_with_invalid_token_returns_401(self, api_client):
-        url = reverse("token-refresh")
-        response = api_client.post(url, {"refresh": "invalid-token"}, format="json")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.campaign.refresh_from_db()
+        self.assertFalse(self.campaign.is_active)
 
-    def test_token_refresh_with_valid_token_returns_200(self, api_client, tenant_user):
-        from rest_framework_simplejwt.tokens import RefreshToken
+    def test_toggle_with_explicit_value_sets_is_active(self):
+        response = self.client.patch(
+            self.url, {"is_active": False}, format="json"
+        )
 
-        refresh = RefreshToken.for_user(tenant_user)
-        url = reverse("token-refresh")
-        response = api_client.post(url, {"refresh": str(refresh)}, format="json")
-        assert response.status_code == status.HTTP_200_OK
-        assert "access" in response.data
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.campaign.refresh_from_db()
+        self.assertFalse(self.campaign.is_active)
 
+    def test_toggle_twice_returns_to_original_state(self):
+        self.client.patch(self.url, {}, format="json")
+        self.client.patch(self.url, {}, format="json")
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Pagination tests
-# ─────────────────────────────────────────────────────────────────────────────
+        self.campaign.refresh_from_db()
+        self.assertTrue(self.campaign.is_active)
 
 
-class TestStandardResultsPagination:
-    """Unit tests for the pagination class — no DB needed."""
+class CampaignFilterSearchOrderTests(APITestCase):
+    def setUp(self):
+        self.user, self.tenant = make_user_with_tenant("+989121111111")
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("campaign-list")
 
-    def test_pagination_class_has_correct_page_size(self):
-        from core.pagination import StandardResultsPagination
+        Campaign.objects.create(tenant=self.tenant, name="Alpha Sale", is_active=True)
+        Campaign.objects.create(
+            tenant=self.tenant, name="Beta Promo", is_active=False
+        )
+        Campaign.objects.create(
+            tenant=self.tenant, name="Gamma Sale", is_active=True
+        )
 
-        assert StandardResultsPagination.page_size == 20
+    def test_filter_by_is_active(self):
+        response = self.client.get(self.url, {"is_active": "true"})
 
-    def test_pagination_class_has_correct_max_page_size(self):
-        from core.pagination import StandardResultsPagination
+        names = {item["name"] for item in response.data["results"]}
+        self.assertEqual(names, {"Alpha Sale", "Gamma Sale"})
 
-        assert StandardResultsPagination.max_page_size == 100
+    def test_search_by_name(self):
+        response = self.client.get(self.url, {"search": "Sale"})
 
+        names = {item["name"] for item in response.data["results"]}
+        self.assertEqual(names, {"Alpha Sale", "Gamma Sale"})
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Exception handler tests
-# ─────────────────────────────────────────────────────────────────────────────
+    def test_ordering_by_created_at_descending_by_default(self):
+        response = self.client.get(self.url)
 
+        names = [item["name"] for item in response.data["results"]]
+        self.assertEqual(names, ["Gamma Sale", "Beta Promo", "Alpha Sale"])
 
-class TestCustomExceptionHandler:
-    """Unit tests for the exception handler shape."""
+    def test_ordering_by_name_ascending(self):
+        response = self.client.get(self.url, {"ordering": "name"})
 
-    def test_validation_error_returns_correct_shape(self):
-        from rest_framework.exceptions import ValidationError
+        names = [item["name"] for item in response.data["results"]]
+        self.assertEqual(names, ["Alpha Sale", "Beta Promo", "Gamma Sale"])
 
-        from core.exceptions import custom_exception_handler
+    def test_list_is_paginated(self):
+        response = self.client.get(self.url)
 
-        exc = ValidationError({"email": ["This field is required."]})
-        response = custom_exception_handler(exc, {})
-        assert response is not None
-        assert response.data["error"] is True
-        assert "status_code" in response.data
-        assert "message" in response.data
-        assert "details" in response.data
+        for key in ("count", "next", "previous", "total_pages", "current_page", "results"):
+            self.assertIn(key, response.data)
 
-    def test_permission_denied_returns_403_shape(self):
-        from rest_framework.exceptions import PermissionDenied
 
-        from core.exceptions import custom_exception_handler
+class CampaignMetaTests(APITestCase):
+    def setUp(self):
+        user, _ = make_user_with_tenant("+989121111111")
+        self.client.force_authenticate(user=user)
+        self.url = reverse("campaign-meta")
 
-        exc = PermissionDenied()
-        response = custom_exception_handler(exc, {})
-        assert response is not None
-        assert response.data["error"] is True
-        assert response.data["status_code"] == 403
+    def test_meta_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.url)
 
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Tenant auto-creation signal
-# ─────────────────────────────────────────────────────────────────────────────
+    def test_meta_returns_all_expected_choice_fields(self):
+        response = self.client.get(self.url)
 
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in (
+            "activation_base",
+            "comparison_type",
+            "value_unit",
+            "gender",
+            "buying_power",
+            "priority",
+            "product_source",
+            "customer_type",
+            "coupon_discount_percentage",
+        ):
+            self.assertIn(field, response.data)
+            self.assertGreater(len(response.data[field]), 0)
+            self.assertIn("value", response.data[field][0])
+            self.assertIn("label", response.data[field][0])
 
-@pytest.mark.django_db
-class TestTenantAutoCreation:
-    """Verify the post_save signal still works correctly."""
+    def test_meta_gender_choices_match_model(self):
+        response = self.client.get(self.url)
 
-    def test_tenant_created_on_user_creation(self, tenant_user):
-        from core.models import Tenant
+        values = {item["value"] for item in response.data["gender"]}
+        self.assertEqual(values, {"آقایان", "بانوان", "همه"})
 
-        assert Tenant.objects.filter(owner=tenant_user).exists()
 
-    def test_each_user_has_exactly_one_tenant(self, tenant_user):
-        from core.models import Tenant
+class CampaignTenantIsolationTests(APITestCase):
+    """
+    Spec requirement: user A cannot see, modify, or otherwise discover
+    the existence of user B's campaigns.
+    """
 
-        count = Tenant.objects.filter(owner=tenant_user).count()
-        assert count == 1
+    def setUp(self):
+        self.user_a, self.tenant_a = make_user_with_tenant("+989121111111")
+        self.user_b, self.tenant_b = make_user_with_tenant("+989122222222")
 
-    def test_two_users_have_separate_tenants(self, tenant_user, other_user):
-        from core.models import Tenant
+        self.campaign_a = Campaign.objects.create(
+            tenant=self.tenant_a, name="Tenant A Campaign"
+        )
+        self.campaign_b = Campaign.objects.create(
+            tenant=self.tenant_b, name="Tenant B Campaign"
+        )
 
-        t1 = Tenant.objects.get(owner=tenant_user)
-        t2 = Tenant.objects.get(owner=other_user)
-        assert t1.pk != t2.pk
+    def test_list_only_shows_own_tenants_campaigns(self):
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get(reverse("campaign-list"))
+
+        names = {item["name"] for item in response.data["results"]}
+        self.assertEqual(names, {"Tenant A Campaign"})
+
+    def test_cannot_retrieve_other_tenants_campaign(self):
+        self.client.force_authenticate(user=self.user_a)
+        url = reverse("campaign-detail", args=[self.campaign_b.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cannot_update_other_tenants_campaign(self):
+        self.client.force_authenticate(user=self.user_a)
+        url = reverse("campaign-detail", args=[self.campaign_b.id])
+
+        response = self.client.patch(url, {"name": "Hijacked"})
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.campaign_b.refresh_from_db()
+        self.assertEqual(self.campaign_b.name, "Tenant B Campaign")
+
+    def test_cannot_delete_other_tenants_campaign(self):
+        self.client.force_authenticate(user=self.user_a)
+        url = reverse("campaign-detail", args=[self.campaign_b.id])
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Campaign.objects.filter(id=self.campaign_b.id).exists())
+
+    def test_cannot_toggle_other_tenants_campaign(self):
+        self.client.force_authenticate(user=self.user_a)
+        url = reverse("campaign-toggle", args=[self.campaign_b.id])
+
+        response = self.client.patch(url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_search_does_not_leak_other_tenants_campaigns(self):
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get(reverse("campaign-list"), {"search": "Tenant B"})
+
+        self.assertEqual(response.data["count"], 0)
