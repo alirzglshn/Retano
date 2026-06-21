@@ -1,4 +1,3 @@
-# users/auth/otp.py
 """
 OTP issuance, storage, and verification.
 
@@ -40,7 +39,7 @@ from rest_framework.exceptions import APIException
 
 from core.exceptions import OTPError
 
-from .sms import KavenegarOTPSender, OTPSender
+from .sms import OTPSender, get_default_sender
 
 
 logger = logging.getLogger("retano.auth.otp")
@@ -106,7 +105,7 @@ class OTPService:
     """Thin orchestrator around the cache + SMS sender."""
 
     def __init__(self, sender: Optional[OTPSender] = None) -> None:
-        self._sender = sender or KavenegarOTPSender()
+        self._sender = sender or get_default_sender()
         self._ttl = getattr(settings, "OTP_TTL_SECONDS", DEFAULT_OTP_TTL_SECONDS)
         self._length = getattr(settings, "OTP_LENGTH", DEFAULT_OTP_LENGTH)
         self._cooldown = getattr(

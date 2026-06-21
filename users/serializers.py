@@ -1,52 +1,123 @@
 # users/serializers.py
-from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
-
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .auth.phone import normalize_iranian_phone
 from .models import CustomUser
 
 
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+# ─────────────────────────────────────────────────────────────────────────────
+# Auth (Phase 2)
+# ─────────────────────────────────────────────────────────────────────────────
 
-    def validate(self, data):
-        user = authenticate(email=data["email"], password=data["password"])
-        if not user:
-            raise serializers.ValidationError("Invalid email or password")
-        if not user.is_active:
-            raise serializers.ValidationError("User is inactive")
 
+class PhoneNumberField(serializers.CharField):
+    """
+    CharField that normalizes any accepted Iranian phone format to E.164
+    before it reaches view/service logic.
+    """
+
+    def to_internal_value(self, data):
+        raw = super().to_internal_value(data)
+        try:
+            return normalize_iranian_phone(raw)
+        except Exception as exc:  # ValidationError from django.core.exceptions
+            raise serializers.ValidationError(str(exc))
+
+
+class OTPRequestSerializer(serializers.Serializer):
+    """POST /api/v1/auth/otp/request/ — accepts a phone number to OTP."""
+
+    phone_number = PhoneNumberField()
+
+
+class OTPVerifySerializer(serializers.Serializer):
+    """
+    POST /api/v1/auth/otp/verify/
+
+    Verifies the OTP and, on success, issues Simple JWT access/refresh
+    tokens. Creates the user on first verification (so verify also acts
+    as implicit login-or-register for users who skip /auth/register/).
+    """
+
+    phone_number = PhoneNumberField()
+    code = serializers.CharField(max_length=12, write_only=True)
+
+    def create_tokens(self, user: CustomUser) -> dict:
         refresh = RefreshToken.for_user(user)
-
         return {
-            "user_id": user.id,
-            "email": user.email,
             "access": str(refresh.access_token),
             "refresh": str(refresh),
         }
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password2 = serializers.CharField(write_only=True)
+    """
+    POST /api/v1/auth/register/
+
+    Creates a CustomUser from a phone number. Optional profile fields may
+    be supplied up front; everything else is filled in later via
+    /api/v1/profile/. Saving triggers the existing post_save signal on
+    CustomUser, which creates the user's Tenant.
+    """
+
+    phone_number = PhoneNumberField()
 
     class Meta:
         model = CustomUser
-        fields = ["username", "email", "password", "password2"]
-        extra_kwargs = {"password": {"write_only": True}}
+        fields = [
+            "phone_number",
+            "first_name",
+            "last_name",
+            "shop_name",
+        ]
 
-    def validate(self, data):
-        if data["password"] != data["password2"]:
-            raise serializers.ValidationError("Passwords do not match")
-        return data
+    def validate_phone_number(self, value):
+        if CustomUser.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError(
+                "A user with this phone number already exists."
+            )
+        return value
 
     def create(self, validated_data):
-        validated_data.pop("password2")
-        user = User.objects.create_user(
-            username=validated_data["username"],
-            email=validated_data.get("email", ""),
-            password=validated_data["password"],
-        )
-        return user
+        return CustomUser.objects.create_user(**validated_data)
+
+
+class LogoutSerializer(serializers.Serializer):
+    """POST /api/v1/auth/logout/ — blacklists the given refresh token."""
+
+    refresh = serializers.CharField()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Profile (Phase 3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    """
+    GET/PATCH /api/v1/profile/
+
+    phone_number is intentionally read-only here: changing the auth
+    identifier is a security-sensitive operation (would need its own
+    OTP-reverification flow) and is out of scope for this endpoint.
+    """
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            "id",
+            "phone_number",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "shop_name",
+            "shop_website_address",
+            "website_address",
+            "position",
+            "birth_date",
+            "about_me",
+            "is_premium",
+        ]
+        read_only_fields = ["id", "phone_number", "is_premium"]
