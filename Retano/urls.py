@@ -9,9 +9,9 @@ Structure:
     /api/docs/       — Swagger UI
     /api/redoc/      — ReDoc UI
 
-    Legacy SSR routes (/, /users/, /tickets/) remain active during the
-    transition period.  They will be removed in the final cleanup phase
-    once the React frontend is live.
+This project is API-only. Legacy server-rendered routes have been
+removed; the frontend is a separate React application that talks to
+/api/v1/ exclusively.
 """
 
 from django.conf import settings
@@ -55,10 +55,6 @@ urlpatterns = [
     # REST API v1
     path("api/v1/", include("core.urls")),
     path("api/v1/", include("users.urls")),
-    # ── Legacy SSR routes — to be removed after React frontend goes live ──
-    path("", include("core.urls_legacy")),
-    path("users/", include("users.urls_legacy")),
-    path("tickets/", include("tickets.urls")),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
