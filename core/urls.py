@@ -8,6 +8,13 @@ from .views import CampaignMetaView, CampaignViewSet
 
 from core.views_reports import SegmentsReportView, TrendsReportView
 
+from core.views_uploads import (
+    CustomerUploadView,
+    ProductUploadView,
+    CouponUploadView,
+    SampleFilesView,
+)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DefaultRouter — registers ViewSets
 # Generates:
