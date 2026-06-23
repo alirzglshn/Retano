@@ -6,6 +6,8 @@ from rest_framework.routers import DefaultRouter
 
 from .views import CampaignMetaView, CampaignViewSet
 
+from core.views_reports import SegmentsReportView, TrendsReportView
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DefaultRouter — registers ViewSets
 # Generates:
@@ -31,18 +33,19 @@ urlpatterns = [
     # Router-generated URLs
     path("", include(router.urls)),
     # ── Dashboard (Phase 7) ───────────────────────────────────────────────
-    # path("dashboard/", DashboardView.as_view(), name="api-dashboard"),
-    # ── Reports (Phase 5) ─────────────────────────────────────────────────
-    # path("reports/trends/", TrendsView.as_view(), name="report-trends"),
-    # path("reports/segments/", SegmentsView.as_view(), name="report-segments"),
+    path("dashboard/", DashboardView.as_view(), name="api-dashboard"),
+    # ── Reports  ─────────────────────────────────────────────────
+    path("reports/trends/", TrendsReportView.as_view(), name="report-trends"),
+    path("reports/segments/", SegmentsReportView.as_view(), name="reports-segments"),
     # ── File uploads (Phase 6) ────────────────────────────────────────────
-    # path("uploads/customers/", CustomerUploadView.as_view(), name="upload-customers"),
-    # path("uploads/products/", ProductUploadView.as_view(), name="upload-products"),
-    # path("uploads/coupons/", CouponUploadView.as_view(), name="upload-coupons"),
-    # path("uploads/sample-files/", SampleFilesView.as_view(), name="upload-sample-files"),
+    path("uploads/customers/", CustomerUploadView.as_view(), name="upload-customers"),
+    path("uploads/products/", ProductUploadView.as_view(), name="upload-products"),
+    path("uploads/coupons/", CouponUploadView.as_view(), name="upload-coupons"),
+    path("uploads/sample-files/", SampleFilesView.as_view(), name="upload-sample-files"),
     # ── SMS / Billing (Phase 8) ───────────────────────────────────────────
-    # path("sms/packages/", PackagesView.as_view(), name="sms-packages"),
-    # path("sms/purchase/", PurchaseView.as_view(), name="sms-purchase"),
-    # path("sms/purchase/verify/", PurchaseVerifyView.as_view(), name="sms-purchase-verify"),
-    # path("sms/balance/", BalanceView.as_view(), name="sms-balance"),
+    path("sms/packages/", PackagesView.as_view(), name="sms-packages"),
+    path("sms/purchase/", PurchaseView.as_view(), name="sms-purchase"),
+    path("sms/purchase/verify/", PurchaseVerifyView.as_view(), name="sms-purchase-verify"),
+    path("sms/balance/", BalanceView.as_view(), name="sms-balance"),
 ]
+ 
