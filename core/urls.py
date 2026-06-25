@@ -14,6 +14,7 @@ from core.views_uploads import (
     CouponUploadView,
     SampleFilesView,
 )
+from core.views_dashboard import DashboardView
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DefaultRouter — registers ViewSets
@@ -39,7 +40,7 @@ urlpatterns = [
     path("campaigns/meta/", CampaignMetaView.as_view(), name="campaign-meta"),
     # Router-generated URLs
     path("", include(router.urls)),
-    # ── Dashboard (Phase 7) ───────────────────────────────────────────────
+    # ── Dashboard  ───────────────────────────────────────────────
     path("dashboard/", DashboardView.as_view(), name="api-dashboard"),
     # ── Reports  ─────────────────────────────────────────────────
     path("reports/trends/", TrendsReportView.as_view(), name="report-trends"),
@@ -50,9 +51,9 @@ urlpatterns = [
     path("uploads/coupons/", CouponUploadView.as_view(), name="upload-coupons"),
     path("uploads/sample-files/", SampleFilesView.as_view(), name="upload-sample-files"),
     # ── SMS / Billing (Phase 8) ───────────────────────────────────────────
-    path("sms/packages/", PackagesView.as_view(), name="sms-packages"),
-    path("sms/purchase/", PurchaseView.as_view(), name="sms-purchase"),
-    path("sms/purchase/verify/", PurchaseVerifyView.as_view(), name="sms-purchase-verify"),
-    path("sms/balance/", BalanceView.as_view(), name="sms-balance"),
+    # path("sms/packages/", PackagesView.as_view(), name="sms-packages"),
+    # path("sms/purchase/", PurchaseView.as_view(), name="sms-purchase"),
+    # path("sms/purchase/verify/", PurchaseVerifyView.as_view(), name="sms-purchase-verify"),
+    # path("sms/balance/", BalanceView.as_view(), name="sms-balance"),
 ]
  
