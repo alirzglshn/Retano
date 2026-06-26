@@ -136,6 +136,12 @@ class CustomUser(AbstractUser):
     birth_date = models.DateField(blank=True, null=True)
     about_me = models.TextField(blank=True, null=True)
 
+    num_available_sms = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of SMS credits available. Set manually via admin.",
+    )
+    
+
     USERNAME_FIELD = "phone_number"
     REQUIRED_FIELDS = []  # phone_number is implicit; nothing else is mandatory
 
