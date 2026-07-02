@@ -6,7 +6,13 @@ from rest_framework.routers import DefaultRouter
 
 from .views import CampaignMetaView, CampaignViewSet
 
-from core.views_reports import SegmentsReportView, TrendsReportView
+from core.views_reports import (
+    SegmentsReportView,
+    TrendsReportView,
+    SalesRangeReportView,
+    ActiveUsersReportView,
+    RetentionReportView,
+)
 
 from core.views_uploads import (
     CustomerUploadView,
@@ -49,6 +55,21 @@ urlpatterns = [
     # ── Reports  ─────────────────────────────────────────────────
     path("reports/trends/", TrendsReportView.as_view(), name="report-trends"),
     path("reports/segments/", SegmentsReportView.as_view(), name="reports-segments"),
+    path(
+        "reports/sales-ranges/",
+        SalesRangeReportView.as_view(),
+        name="reports-sales-ranges",
+    ),
+    path(
+        "reports/active-users/",
+        ActiveUsersReportView.as_view(),
+        name="reports-active-users",
+    ),
+    path(
+        "reports/retention/",
+        RetentionReportView.as_view(),
+        name="reports-retention",
+    ),
 
     # ── File uploads  ────────────────────────────────────────────
     path("uploads/customers/", CustomerUploadView.as_view(), name="upload-customers"),
@@ -56,4 +77,3 @@ urlpatterns = [
     path("uploads/coupons/", CouponUploadView.as_view(), name="upload-coupons"),
     path("uploads/sample-files/", SampleFilesView.as_view(), name="upload-sample-files"),
 ]
- 
