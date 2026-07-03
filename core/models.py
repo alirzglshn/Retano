@@ -138,14 +138,6 @@ class Campaign(models.Model):
         ("خیلی پایین", "خیلی پایین"),
     ]
 
-    PRODUCT_SOURCE_CHOICES = [
-        ("اولین محصول پرفروش", "اولین محصول پرفروش"),
-        ("دومین محصول پرفروش", "دومین محصول پرفروش"),
-        ("سومین محصول پرفروش", "سومین محصول پرفروش"),
-        ("پرتکرارترین محصول خریداری شده کاربر", "پرتکرارترین محصول خریداری شده کاربر"),
-        ("هیچ کدام", "هیچ کدام"),
-    ]
-
     CUSTOMER_TYPE_CHOICES = [
         ("همه", "همه"),
         ("ویژه", "ویژه"),
@@ -226,11 +218,7 @@ class Campaign(models.Model):
         blank=True,
         verbose_name="ویژگی دوم محصول",
     )
-    product_source = models.CharField(
-        max_length=100,
-        choices=PRODUCT_SOURCE_CHOICES,
-        default="اولین محصول پرفروش",
-    )
+   
     is_active = models.BooleanField(default=True)
     message_pattern = models.TextField(default="الگوی پیام")
     created_at = models.DateTimeField(auto_now_add=True)
