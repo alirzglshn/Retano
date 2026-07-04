@@ -122,7 +122,6 @@ class CampaignMetaView(APIView):
         "gender",
         "buying_power",
         "priority",
-        "product_source",
         "customer_type",
     ]
 

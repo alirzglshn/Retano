@@ -220,6 +220,7 @@ class Campaign(models.Model):
     )
    
     is_active = models.BooleanField(default=True)
+    description = models.TextField(blank=True, default="")
     message_pattern = models.TextField(default="الگوی پیام")
     created_at = models.DateTimeField(auto_now_add=True)
 

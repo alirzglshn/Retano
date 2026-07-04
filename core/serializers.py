@@ -59,6 +59,7 @@ class CampaignSerializer(serializers.ModelSerializer):
             "first_product_attribute",
             "second_product_attribute",
             "product_source",
+            "description",
             "is_active",
             "message_pattern",
             "created_at",
