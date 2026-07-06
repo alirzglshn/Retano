@@ -23,6 +23,19 @@ from core.views_uploads import (
 )
 from core.views_dashboard import DashboardView
 
+from core.views_sync_conf import (
+      SyncConfigStatusView,
+      SyncFieldMappingView,
+      SyncApiKeyGenerateView,
+  )
+from core.views_sync import (
+      SyncConfigFetchView,
+      UserSyncIngestView,
+      ProductSyncIngestView,
+      SyncReportView,
+)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DefaultRouter — registers ViewSets
 # ─────────────────────────────────────────────────────────────────────────────
@@ -64,6 +77,33 @@ urlpatterns = [
     path("uploads/products/", ProductUploadView.as_view(), name="upload-products"),
     path("uploads/coupons/", CouponUploadView.as_view(), name="upload-coupons"),
     path("uploads/sample-files/", SampleFilesView.as_view(), name="upload-sample-files"),
+
+    path(
+        "sync-conf/status/",
+        SyncConfigStatusView.as_view(),
+        name="sync-conf-status",
+    ),
+    path(
+        "sync-conf/mapping/",
+        SyncFieldMappingView.as_view(),
+        name="sync-conf-mapping",
+    ),
+    path(
+        "sync-conf/generate-key/",
+        SyncApiKeyGenerateView.as_view(),
+        name="sync-conf-generate-key",
+    ),
+
+    # ── ETL-facing sync API (Bearer API-key authenticated) ────────────────
+    path("sync/config/", SyncConfigFetchView.as_view(), name="sync-config-fetch"),
+    path("sync/data/users/", UserSyncIngestView.as_view(), name="sync-data-users"),
+    path(
+        "sync/data/products/",
+        ProductSyncIngestView.as_view(),
+        name="sync-data-products",
+    ),
+    path("sync/report/", SyncReportView.as_view(), name="sync-report"),
+
 
     # ── Upload job status polling (NEW) ─────────────────────────────────────
     path(

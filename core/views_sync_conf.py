@@ -1,0 +1,184 @@
+# core/views_sync_conf.py
+"""
+Backend for the "تنظیم API" page.
+
+Two responsibilities:
+    1. Read/write the tenant's field mapping (the 16+ rectangles in the UI).
+    2. Generate the tenant's sync API key ("تولید API" button) — blocked
+       until every mapping row is completely filled in.
+
+Standard JWT auth, same as the rest of the human-facing API — this is NOT
+the ETL-facing surface (see core/views_sync.py / core/sync/authentication.py
+for that).
+"""
+
+from django.db import transaction
+from django.utils import timezone
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from core.models import SyncConfig, SyncFieldMapping
+from core.serializers_sync import (
+    SyncApiKeyGeneratedSerializer,
+    SyncConfigMappingBulkSerializer,
+    SyncConfigStatusSerializer,
+    SyncFieldMappingReadSerializer,
+)
+from core.sync.field_registry import get_field_specs
+
+
+def _tenant(request):
+    return request.user.tenant
+
+
+def _get_or_create_sync_config(tenant) -> SyncConfig:
+    sync_config, _ = SyncConfig.objects.get_or_create(tenant=tenant)
+    return sync_config
+
+
+class SyncConfigStatusView(APIView):
+    """
+    GET /api/v1/sync-conf/status/
+
+    Top-of-page status: is sync enabled, key prefix (masked), last run
+    outcome. Does not include the mapping rows themselves — see
+    SyncFieldMappingView for those.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        sync_config = _get_or_create_sync_config(_tenant(request))
+        serializer = SyncConfigStatusSerializer(sync_config)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SyncFieldMappingView(APIView):
+    """
+    GET /api/v1/sync-conf/mapping/
+        Returns every mapping row for both entities (including empty ones,
+        so the frontend can render every rectangle — filled or not — on
+        page load).
+
+    PUT /api/v1/sync-conf/mapping/
+        Replaces the tenant's entire mapping atomically. See
+        SyncConfigMappingBulkSerializer for the required body shape:
+        every field for both entities must be present in a single call.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tenant = _tenant(request)
+        existing = {
+            (m.entity, m.field_name): m
+            for m in SyncFieldMapping.objects.filter(tenant=tenant)
+        }
+
+        rows = []
+        for entity in ("user", "product"):
+            for spec in get_field_specs(entity):
+                mapping = existing.get((entity, spec.field_name))
+                if mapping is None:
+                    # Not yet saved — represent as an empty row so the
+                    # frontend can still render the rectangle.
+                    rows.append(
+                        {
+                            "entity": entity,
+                            "field_name": spec.field_name,
+                            "client_table": "",
+                            "client_column": "",
+                            "is_filled": False,
+                        }
+                    )
+                else:
+                    rows.append(SyncFieldMappingReadSerializer(mapping).data)
+
+        return Response({"mappings": rows}, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        tenant = _tenant(request)
+        serializer = SyncConfigMappingBulkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            for item in serializer.validated_data["mappings"]:
+                SyncFieldMapping.objects.update_or_create(
+                    tenant=tenant,
+                    entity=item["entity"],
+                    field_name=item["field_name"],
+                    defaults={
+                        "client_table": item.get("client_table", "").strip(),
+                        "client_column": item.get("client_column", "").strip(),
+                    },
+                )
+
+        return Response(
+            {"message": "نگاشت ستون‌ها با موفقیت ذخیره شد."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SyncApiKeyGenerateView(APIView):
+    """
+    POST /api/v1/sync-conf/generate-key/  ("تولید API" button)
+
+    Blocked (400) unless EVERY mapping row for BOTH entities has both
+    client_table and client_column non-blank. Per explicit product
+    decision, this includes first_product_attribute/second_product_attribute
+    — those two are only forgiving at RUNTIME if the configured
+    table/column turns out not to exist in the tenant's actual database;
+    at configuration time, the tenant must still declare something for
+    every field, same as any other.
+
+    On success:
+        - Generates a new API key (rotating any previous one).
+        - Enables the SyncConfig (is_enabled = True) so the ETL's key
+          lookup (SyncConfig.resolve_from_raw_key) will accept it.
+        - Returns the raw key ONCE. The frontend must copy/display it
+          immediately (matches the "دریافت API" copy button in the UI) —
+          it is never retrievable again.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        tenant = _tenant(request)
+
+        mappings = list(SyncFieldMapping.objects.filter(tenant=tenant))
+        by_key = {(m.entity, m.field_name): m for m in mappings}
+
+        incomplete = []
+        for entity in ("user", "product"):
+            for spec in get_field_specs(entity):
+                mapping = by_key.get((entity, spec.field_name))
+                if mapping is None or not mapping.is_filled:
+                    incomplete.append(f"{entity}.{spec.field_name}")
+
+        if incomplete:
+            return Response(
+                {
+                    "status": "error",
+                    "error_type": "mapping_incomplete",
+                    "message": (
+                        "لطفاً همه فیلدهای نگاشت ستون را قبل از تولید API تکمیل کنید."
+                    ),
+                    "missing_fields": incomplete,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        sync_config = _get_or_create_sync_config(tenant)
+        raw_key = sync_config.generate_new_api_key()
+        sync_config.is_enabled = True
+        sync_config.save(update_fields=["is_enabled"])
+
+        payload = SyncApiKeyGeneratedSerializer(
+            {
+                "api_key": raw_key,
+                "api_key_prefix": sync_config.api_key_prefix,
+                "generated_at": sync_config.api_key_generated_at,
+            }
+        ).data
+        return Response(payload, status=status.HTTP_201_CREATED)
