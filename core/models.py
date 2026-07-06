@@ -4,6 +4,8 @@ from django.conf import settings
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+import uuid
+
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
@@ -12,11 +14,120 @@ def create_tenant_for_new_user(sender, instance, created, **kwargs):
         Tenant.objects.get_or_create(owner=instance)
 
 
+
 class Tenant(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"Tenant #{self.id} — {self.owner}"
+
+
+
+
+
+
+
+class UploadJob(models.Model):
+    """
+    Tracks the lifecycle of one asynchronous Excel upload (customers,
+    products, or coupons) so the frontend can poll for real progress
+    instead of the request blocking until the import finishes.
+
+    Lifecycle:
+        queued      → task has been created and handed to Celery, worker
+                      has not started reading the file yet
+        processing  → worker is actively reading/COPYing rows;
+                      processed_rows / total_rows updates as it goes
+        success     → flush_*_staging completed, rows_saved is final
+        partial     → flush completed but some rows were skipped
+                      (missing required fields) — mirrors the old
+                      per-row "if not internal_id: continue" behavior
+        failed      → error_type / message explain why, exactly like the
+                      old synchronous error response shape
+    """
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        PROCESSING = "processing", "Processing"
+        SUCCESS = "success", "Success"
+        PARTIAL = "partial", "Partial"
+        FAILED = "failed", "Failed"
+
+    class UploadType(models.TextChoices):
+        CUSTOMERS = "customers", "Customers"
+        PRODUCTS = "products", "Products"
+        COUPONS = "coupons", "Coupons"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        "core.Tenant", on_delete=models.CASCADE, related_name="upload_jobs"
+    )
+    upload_type = models.CharField(max_length=20, choices=UploadType.choices)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.QUEUED
+    )
+
+    # Storage location of the originally uploaded file (Supabase Storage key,
+    # not a local path — the worker may run on a different machine than the
+    # web process that accepted the upload).
+    storage_key = models.CharField(max_length=500)
+    original_filename = models.CharField(max_length=255, blank=True, default="")
+
+    # Same shape as the old customers_mapping / products_mapping /
+    # coupons_mapping dicts — field name -> zero-based column index.
+    mapping = models.JSONField()
+
+    total_rows = models.PositiveIntegerField(null=True, blank=True)
+    processed_rows = models.PositiveIntegerField(default=0)
+    rows_saved = models.PositiveIntegerField(default=0)
+
+    error_type = models.CharField(max_length=50, null=True, blank=True)
+    message = models.TextField(blank=True, default="")
+
+    celery_task_id = models.CharField(max_length=155, null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "upload_job"
+        indexes = [
+            models.Index(fields=["tenant", "status"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"UploadJob({self.id}, {self.upload_type}, {self.status})"
+
+    @property
+    def progress_percentage(self) -> float:
+        if not self.total_rows:
+            return 0.0
+        return round(min(self.processed_rows, self.total_rows) / self.total_rows * 100, 2)
+
+    def to_status_dict(self) -> dict:
+        """Shape returned by GET /api/v1/uploads/jobs/{id}/"""
+        return {
+            "job_id": str(self.id),
+            "upload_type": self.upload_type,
+            "status": self.status,
+            "total_rows": self.total_rows,
+            "processed_rows": self.processed_rows,
+            "rows_saved": self.rows_saved,
+            "progress_percentage": self.progress_percentage,
+            "error_type": self.error_type,
+            "message": self.message,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+
+
+
+
+
+
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

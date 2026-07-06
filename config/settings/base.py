@@ -315,3 +315,58 @@ OTP_LENGTH = 6
 # ─────────────────────────────────────────────────────────────────────────────
 
 KAVENEGAR_API_KEY = os.environ.get("KAVENEGAR_API_KEY", "")
+
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ADD THIS BLOCK TO THE BOTTOM OF config/settings/base.py
+#
+# Placement rationale: base.py already establishes REDIS_URL using
+# os.environ.get(...) with a same-shape fallback for the cache backend
+# (DB index 1). Celery needs its own Redis logical DB so cache keys and
+# Celery's broker/result-backend keys never collide -- reusing DB 1 for
+# both would work technically but makes FLUSHDB-style debugging or cache
+# clearing dangerous (you could wipe Celery's queue by accident). This
+# block follows the exact same os.environ.get(...) + fallback pattern
+# already used throughout this file, and does not duplicate REDIS_URL --
+# it derives the Celery URLs from the same host, just different DB
+# numbers, so there's a single source of truth for the Redis host/port.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Celery ───────────────────────────────────────────────────────────────────
+# Reuses the same Redis instance as CACHES above, on separate logical DBs
+# (2 for broker, 3 for result backend) so cache/broker/results never collide.
+_REDIS_BASE_URL = REDIS_URL.rsplit("/", 1)[0]  # strips the trailing /1 from REDIS_URL
+
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", f"{_REDIS_BASE_URL}/2")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", f"{_REDIS_BASE_URL}/3")
+
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE  # reuse the project's existing TIME_ZONE ("UTC")
+
+# Upload processing can legitimately run for many minutes on a multi-million
+# row file. Do not let Celery's own visibility/ack timeouts kill a task that
+# is still making progress -- the UploadJob row is the actual progress
+# signal, not the task's liveness from the broker's point of view.
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_TIME_LIMIT = 60 * 60 * 3       # hard kill at 3 hours
+CELERY_TASK_SOFT_TIME_LIMIT = 60 * 60 * 2  # 2 hours: task can catch this and mark job failed gracefully
+
+# Dedicated queue so upload processing never competes with other Celery
+# workloads this project may add later (emails, SMS via Kavenegar, etc.)
+CELERY_TASK_ROUTES = {
+    "core.tasks.uploads.*": {"queue": "uploads"},
+}
+
+# ── Supabase Storage (used by core/services/storage.py) ─────────────────────
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_UPLOAD_BUCKET = os.environ.get("SUPABASE_UPLOAD_BUCKET", "upload-staging")
+
+# Chunk size for reading Excel rows and COPYing into staging.
+UPLOAD_CHUNK_SIZE = int(os.environ.get("UPLOAD_CHUNK_SIZE", "50000"))

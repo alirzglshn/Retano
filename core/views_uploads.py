@@ -1,4 +1,22 @@
 # core/views_uploads.py
+"""
+Async upload endpoints.
+
+Every endpoint here does the same thing structurally:
+    1. Validate the multipart mapping fields (identical rules to before —
+       required, non-negative integers; same field name lists).
+    2. Validate the uploaded file is present and has a plausible extension.
+    3. Stream the file to Supabase Storage (not local disk-then-worker-reads).
+    4. Create an UploadJob row (status=queued).
+    5. Enqueue the corresponding Celery task with the job id.
+    6. Return 202 Accepted immediately with the job id and a status URL.
+
+The client is expected to poll GET /api/v1/uploads/jobs/{id}/ for progress
+(processed_rows / total_rows / status) until status is success/partial/failed.
+
+All Persian-language error messages, the same error_type taxonomy, and the
+same required-field lists as the old synchronous views are preserved.
+"""
 
 from django.conf import settings
 from rest_framework import permissions, status
@@ -6,16 +24,16 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.services.upload_pipeline import (
-    process_customers,
-    process_products,
-    process_coupons,
+from core.models import Coupon
+from core.models import UploadJob
+from core.services.storage import upload_fileobj_to_storage
+from core.tasks.uploads import (
+    process_customers_upload,
+    process_products_upload,
+    process_coupons_upload,
 )
-from core.utils.excel_mapper import (
-    CustomerExcelMapper,
-    ProductExcelMapper,
-    CouponExcelMapper,
-)
+
+ALLOWED_EXTENSIONS = (".xlsx", ".xls")
 
 
 def _tenant(request):
@@ -36,6 +54,66 @@ def _int_field(data, key) -> int | None:
         return None
 
 
+def _validate_file(uploaded_file, missing_message: str):
+    """
+    Returns an error Response if the file is missing or has an implausible
+    extension, else None. Extension checking is a cheap first filter —
+    it is not a substitute for actually attempting to parse the file (which
+    the Celery task still does, and still fails gracefully via error_type
+    'file_error' if the content is not valid Excel).
+    """
+    if not uploaded_file:
+        return Response(
+            {
+                "status": "error",
+                "error_type": "file_error",
+                "message": missing_message,
+                "rows_processed": 0,
+                "rows_saved": 0,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    name = uploaded_file.name or ""
+    if not name.lower().endswith(ALLOWED_EXTENSIONS):
+        return Response(
+            {
+                "status": "error",
+                "error_type": "file_error",
+                "message": "فرمت فایل باید Excel (.xlsx یا .xls) باشد.",
+                "rows_processed": 0,
+                "rows_saved": 0,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
+
+
+def _build_mapping(request_data, mapping_fields: list[str], prefix: str):
+    """Returns (mapping_dict, missing_fields_list) — same semantics as before."""
+    mapping = {}
+    missing_fields = []
+    for form_field in mapping_fields:
+        mapper_key = form_field[len(prefix):]
+        val = _int_field(request_data, form_field)
+        if val is None:
+            missing_fields.append(form_field)
+        else:
+            mapping[mapper_key] = val
+    return mapping, missing_fields
+
+
+def _accepted_response(job: UploadJob):
+    return Response(
+        {
+            "status": "accepted",
+            "job_id": str(job.id),
+            "status_url": f"/api/v1/uploads/jobs/{job.id}/",
+            "message": "فایل دریافت شد و پردازش آن آغاز شده است.",
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Customers upload
 # ─────────────────────────────────────────────────────────────────────────────
@@ -45,34 +123,14 @@ class CustomerUploadView(APIView):
     """
     POST /api/v1/uploads/customers/
 
-    multipart/form-data fields:
-        customers_file                   — required, .xlsx
-        customers_internal_id            — required, int >= 0
-        customers_first_name             — required, int >= 0
-        customers_last_name              — required, int >= 0
-        customers_internal_order_id      — required, int >= 0
-        customers_order_date             — required, int >= 0
-        customers_quantity               — required, int >= 0
-        customers_then_product_price     — required, int >= 0
-        customers_phone_number           — required, int >= 0
-        customers_internal_product_id    — required, int >= 0
-        customers_gender                 — required, int >= 0
-
-    Field names mirror ColumnMappingForm._CUSTOMERS_FORM_FIELDS exactly so
-    the frontend can reuse its existing field set without renaming.
-
-    Response (success):
-        {"status": "success", "message": "...", "rows_processed": N, "rows_saved": M}
-
-    Response (error):
-        {"status": "error", "error_type": "...", "message": "...",
-         "rows_processed": N, "rows_saved": 0}
+    Same multipart fields as before (customers_file, customers_internal_id,
+    customers_first_name, ... customers_gender). Returns 202 with a job_id
+    instead of blocking until the import finishes.
     """
 
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
-    # Field name → mapper key (strips "customers_" prefix)
     _MAPPING_FIELDS = [
         "customers_internal_id",
         "customers_first_name",
@@ -87,33 +145,14 @@ class CustomerUploadView(APIView):
     ]
 
     def post(self, request):
-        # ── File validation ───────────────────────────────────────────────
         uploaded_file = request.FILES.get("customers_file")
-        if not uploaded_file:
-            return Response(
-                {
-                    "status": "error",
-                    "error_type": "file_error",
-                    "message": "فایل مشتریان ارسال نشده است.",
-                    "rows_processed": 0,
-                    "rows_saved": 0,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        file_error = _validate_file(uploaded_file, "فایل مشتریان ارسال نشده است.")
+        if file_error:
+            return file_error
 
-        # ── Build mapping dict from POST fields ───────────────────────────
-        mapping = {}
-        missing_fields = []
-        prefix = "customers_"
-
-        for form_field in self._MAPPING_FIELDS:
-            mapper_key = form_field[len(prefix):]
-            val = _int_field(request.data, form_field)
-            if val is None:
-                missing_fields.append(form_field)
-            else:
-                mapping[mapper_key] = val
-
+        mapping, missing_fields = _build_mapping(
+            request.data, self._MAPPING_FIELDS, "customers_"
+        )
         if missing_fields:
             return Response(
                 {
@@ -129,19 +168,19 @@ class CustomerUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Run pipeline ──────────────────────────────────────────────────
-        result = process_customers(
-            tenant=_tenant(request),
-            customers_file=uploaded_file,
-            customers_mapping=mapping,
+        tenant = _tenant(request)
+        storage_key = upload_fileobj_to_storage(
+            uploaded_file, tenant.id, "customers", uploaded_file.name
         )
-
-        http_status = (
-            status.HTTP_200_OK
-            if result["status"] == "success"
-            else status.HTTP_400_BAD_REQUEST
+        job = UploadJob.objects.create(
+            tenant=tenant,
+            upload_type=UploadJob.UploadType.CUSTOMERS,
+            storage_key=storage_key,
+            original_filename=uploaded_file.name,
+            mapping=mapping,
         )
-        return Response(result, status=http_status)
+        process_customers_upload.delay(str(job.id))
+        return _accepted_response(job)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -152,16 +191,7 @@ class CustomerUploadView(APIView):
 class ProductUploadView(APIView):
     """
     POST /api/v1/uploads/products/
-
-    multipart/form-data fields:
-        products_file                        — required, .xlsx
-        products_internal_product_id         — required, int >= 0
-        products_product_name                — required, int >= 0
-        products_category                    — required, int >= 0
-        products_current_product_price       — required, int >= 0
-        products_first_product_attribute     — required, int >= 0
-        products_second_product_attribute    — required, int >= 0
-        products_product_link                — required, int >= 0
+    Same multipart fields as before. Returns 202 with a job_id.
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -179,30 +209,13 @@ class ProductUploadView(APIView):
 
     def post(self, request):
         uploaded_file = request.FILES.get("products_file")
-        if not uploaded_file:
-            return Response(
-                {
-                    "status": "error",
-                    "error_type": "file_error",
-                    "message": "فایل محصولات ارسال نشده است.",
-                    "rows_processed": 0,
-                    "rows_saved": 0,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        file_error = _validate_file(uploaded_file, "فایل محصولات ارسال نشده است.")
+        if file_error:
+            return file_error
 
-        mapping = {}
-        missing_fields = []
-        prefix = "products_"
-
-        for form_field in self._MAPPING_FIELDS:
-            mapper_key = form_field[len(prefix):]
-            val = _int_field(request.data, form_field)
-            if val is None:
-                missing_fields.append(form_field)
-            else:
-                mapping[mapper_key] = val
-
+        mapping, missing_fields = _build_mapping(
+            request.data, self._MAPPING_FIELDS, "products_"
+        )
         if missing_fields:
             return Response(
                 {
@@ -218,18 +231,19 @@ class ProductUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        result = process_products(
-            tenant=_tenant(request),
-            products_file=uploaded_file,
-            products_mapping=mapping,
+        tenant = _tenant(request)
+        storage_key = upload_fileobj_to_storage(
+            uploaded_file, tenant.id, "products", uploaded_file.name
         )
-
-        http_status = (
-            status.HTTP_200_OK
-            if result["status"] == "success"
-            else status.HTTP_400_BAD_REQUEST
+        job = UploadJob.objects.create(
+            tenant=tenant,
+            upload_type=UploadJob.UploadType.PRODUCTS,
+            storage_key=storage_key,
+            original_filename=uploaded_file.name,
+            mapping=mapping,
         )
-        return Response(result, status=http_status)
+        process_products_upload.delay(str(job.id))
+        return _accepted_response(job)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,11 +254,17 @@ class ProductUploadView(APIView):
 class CouponUploadView(APIView):
     """
     POST /api/v1/uploads/coupons/
+    Same multipart fields as before. Returns 202 with a job_id.
 
-    multipart/form-data fields:
-        coupons_file                  — required, .xlsx
-        coupons_coupon_code           — required, int >= 0
-        coupons_discount_percentage   — required, int >= 0
+    The duplicate-active-coupon guard runs synchronously here, exactly as it
+    did in the old pipeline -- a tenant with unused coupons still gets an
+    immediate 400 with error_type "duplicate_coupon_error" before the file
+    is even uploaded to storage. This check is deliberately kept out of the
+    Celery task: it is cheap (single EXISTS query), and users should learn
+    about it immediately rather than after a round trip through the queue.
+    The task also re-checks the same guard defensively (belt-and-suspenders
+    against a race between two near-simultaneous uploads), but the primary,
+    user-facing rejection path is here.
     """
 
     permission_classes = [permissions.IsAuthenticated]
@@ -256,31 +276,32 @@ class CouponUploadView(APIView):
     ]
 
     def post(self, request):
-        uploaded_file = request.FILES.get("coupons_file")
-        if not uploaded_file:
+        tenant = _tenant(request)
+
+        if Coupon.objects.filter(tenant=tenant, status="available").exists():
             return Response(
                 {
                     "status": "error",
-                    "error_type": "file_error",
-                    "message": "فایل کوپن‌ها ارسال نشده است.",
+                    "error_type": "duplicate_coupon_error",
+                    "message": (
+                        "شما هنوز کوپن\u200cهای استفاده نشده دارید. "
+                        "تا زمانی که همه کوپن\u200cها استفاده نشده\u200cاند، "
+                        "امکان آپلود فایل کوپن جدید وجود ندارد."
+                    ),
                     "rows_processed": 0,
                     "rows_saved": 0,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        mapping = {}
-        missing_fields = []
-        prefix = "coupons_"
+        uploaded_file = request.FILES.get("coupons_file")
+        file_error = _validate_file(uploaded_file, "فایل کوپن\u200cها ارسال نشده است.")
+        if file_error:
+            return file_error
 
-        for form_field in self._MAPPING_FIELDS:
-            mapper_key = form_field[len(prefix):]
-            val = _int_field(request.data, form_field)
-            if val is None:
-                missing_fields.append(form_field)
-            else:
-                mapping[mapper_key] = val
-
+        mapping, missing_fields = _build_mapping(
+            request.data, self._MAPPING_FIELDS, "coupons_"
+        )
         if missing_fields:
             return Response(
                 {
@@ -296,22 +317,50 @@ class CouponUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        result = process_coupons(
-            tenant=_tenant(request),
-            coupons_file=uploaded_file,
-            coupons_mapping=mapping,
+        storage_key = upload_fileobj_to_storage(
+            uploaded_file, tenant.id, "coupons", uploaded_file.name
         )
-
-        http_status = (
-            status.HTTP_200_OK
-            if result["status"] == "success"
-            else status.HTTP_400_BAD_REQUEST
+        job = UploadJob.objects.create(
+            tenant=tenant,
+            upload_type=UploadJob.UploadType.COUPONS,
+            storage_key=storage_key,
+            original_filename=uploaded_file.name,
+            mapping=mapping,
         )
-        return Response(result, status=http_status)
+        process_coupons_upload.delay(str(job.id))
+        return _accepted_response(job)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Sample files
+# Job status polling endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class UploadJobStatusView(APIView):
+    """
+    GET /api/v1/uploads/jobs/{id}/
+
+    Returns the current state of an upload job, including real row-based
+    progress (processed_rows / total_rows / progress_percentage) so the
+    frontend can render a live progress bar without the request itself
+    ever waiting on the import.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id):
+        try:
+            job = UploadJob.objects.get(id=job_id, tenant=_tenant(request))
+        except UploadJob.DoesNotExist:
+            return Response(
+                {"status": "error", "message": "Job not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(job.to_status_dict(), status=status.HTTP_200_OK)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sample files — unchanged from the synchronous version
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -321,13 +370,6 @@ class SampleFilesView(APIView):
 
     Returns absolute URLs for the three sample Excel files so the React
     frontend can offer download links without hardcoding domain names.
-
-    Response:
-        {
-            "customers": "https://api.retano360.com/static/files/format.xlsx",
-            "products":  "https://api.retano360.com/static/files/format_products.xlsx",
-            "coupons":   "https://api.retano360.com/static/files/coupons_excel.xlsx"
-        }
     """
 
     permission_classes = [permissions.IsAuthenticated]
