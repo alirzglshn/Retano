@@ -101,6 +101,14 @@ class ProfileSerializer(serializers.ModelSerializer):
     phone_number is intentionally read-only here: changing the auth
     identifier is a security-sensitive operation (would need its own
     OTP-reverification flow) and is out of scope for this endpoint.
+
+    profile_picture accepts multipart/form-data uploads — the global
+    DRF parser config in config/settings/base.py already includes
+    MultiPartParser and FormParser alongside JSONParser, so PATCHing
+    this field with an image works with no view-level changes.
+
+    business_domain is a fixed set of choices (حوزه کاری dropdown) —
+    see BUSINESS_DOMAIN_CHOICES in users/models.py for the current list.
     """
 
     class Meta:
@@ -119,5 +127,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "birth_date",
             "about_me",
             "is_premium",
+            "profile_picture",
+            "business_domain",
         ]
         read_only_fields = ["id", "phone_number", "is_premium"]

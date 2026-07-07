@@ -10,6 +10,15 @@ Phase 2 change:
       so the Django admin and any legacy code that introspects
       ``get_username()`` keep working.
 
+Phase 3 addition (تنظیمات / Settings page):
+    - ``profile_picture`` — optional avatar image, stored on local
+      MEDIA_ROOT via Django's standard ImageField (consistent with the
+      MEDIA_URL/MEDIA_ROOT setup already in config/settings/base.py and
+      the DEBUG-gated static() serving already in Retano/urls.py — no
+      new storage backend needed).
+    - ``business_domain`` — a constrained choice field backing the
+      "حوزه کاری" dropdown on the settings page.
+
 Nothing about the existing Tenant-creation signal or the rest of the
 data pipeline is touched — registration still flows through the
 standard ``post_save`` on ``CustomUser`` and the existing handler in
@@ -34,6 +43,24 @@ IRANIAN_PHONE_REGEX = RegexValidator(
         "e.g. +989121234567."
     ),
 )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Choices
+# ─────────────────────────────────────────────────────────────────────────────
+
+# TODO: PLACEHOLDER LIST — replace with the real حوزه کاری options once
+# confirmed by product. Values are the stable keys stored in the DB;
+# labels are what the frontend dropdown displays. Swap the tuples below
+# in-place; nothing else needs to change (serializer/view read from here).
+BUSINESS_DOMAIN_CHOICES = [
+    ("fashion_clothing", "مد و لباس"),
+    ("cosmetics_beauty", "لوازم آرایشی و بهداشتی"),
+    ("food_beverage", "غذا و نوشیدنی"),
+    ("home_kitchen", "لوازم خانه و آشپزخانه"),
+    ("digital_electronics", "لوازم دیجیتال و الکترونیک"),
+    ("other", "سایر"),
+]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -99,7 +126,7 @@ class CustomUser(AbstractUser):
     Optional contact / profile fields:
         email, username, first_name, last_name, shop_name,
         shop_website_address, website_address, position, birth_date,
-        about_me, is_premium.
+        about_me, is_premium, profile_picture, business_domain.
     """
 
     # Override AbstractUser.username so it is optional but still unique when set.
@@ -140,7 +167,23 @@ class CustomUser(AbstractUser):
         default=0,
         help_text="Number of SMS credits available. Set manually via admin.",
     )
-    
+
+    # ── تنظیمات / Settings page fields ──────────────────────────────────
+
+    profile_picture = models.ImageField(
+        upload_to="profile_pictures/",
+        null=True,
+        blank=True,
+        help_text="Optional avatar image shown in the sidebar (عکس پروفایل).",
+    )
+
+    business_domain = models.CharField(
+        max_length=50,
+        choices=BUSINESS_DOMAIN_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Tenant's business category (حوزه کاری).",
+    )
 
     USERNAME_FIELD = "phone_number"
     REQUIRED_FIELDS = []  # phone_number is implicit; nothing else is mandatory
