@@ -5,6 +5,9 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import uuid
+import hashlib
+import secrets
+from django.utils import timezone
 
 
 
@@ -120,11 +123,6 @@ class UploadJob(models.Model):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
-
-
-
-
-
 
 
 
@@ -601,3 +599,268 @@ class ErrorLog(models.Model):
             f"[{self.severity.upper()}] {self.source} | "
             f"{self.error_code or 'N/A'} | {self.created_at}"
         )
+
+
+ 
+
+
+
+
+def _generate_raw_api_key() -> str:
+    """
+    32 bytes of urlsafe randomness, prefixed so keys are visually
+    identifiable in logs/support tickets without revealing the secret.
+    Example: "rsk_3f9a1c7b2e4d5f6a8b9c0d1e2f3a4b5c..."
+    """
+    return f"rsk_{secrets.token_urlsafe(32)}"
+
+
+def _hash_api_key(raw_key: str) -> str:
+    """
+    We only ever store the SHA-256 hash of the key, never the raw value.
+    This mirrors password-hashing hygiene: a DB leak does not leak usable
+    credentials. The raw key is shown to the tenant exactly once, at
+    generation time, and never again (matches every serious API-key UX:
+    Stripe, GitHub PATs, etc.)
+    """
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+
+class SyncConfig(models.Model):
+    """
+    Per-tenant configuration for the automated ETL synchronization system.
+
+    One row per Tenant. Created lazily the first time a tenant opens the
+    "تنظیم API" page (see SyncConfigView.get_or_create semantics), not via
+    a post_save signal — a tenant with no interest in this feature should
+    not accumulate an empty row.
+    """
+
+    tenant = models.OneToOneField(
+        "core.Tenant",
+        on_delete=models.CASCADE,
+        related_name="sync_config",
+    )
+
+    is_enabled = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether the ETL is permitted to sync for this tenant. "
+            "Set True only after تولید API has succeeded (i.e. a key exists "
+            "and every required field mapping row is complete)."
+        ),
+    )
+
+    # ── API key (hashed) ────────────────────────────────────────────────────
+    api_key_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    api_key_prefix = models.CharField(
+        max_length=12,
+        null=True,
+        blank=True,
+        help_text="First 12 chars of the raw key, kept for display only "
+        "(e.g. 'rsk_3f9a1c7b'). Never sufficient to authenticate.",
+    )
+    api_key_generated_at = models.DateTimeField(null=True, blank=True)
+
+    # ── ETL run behavior ────────────────────────────────────────────────────
+    batch_size = models.PositiveIntegerField(
+        default=1000,
+        help_text="Max rows per POST from the ETL to the data ingest endpoints.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["api_key_hash"]),
+        ]
+
+    def __str__(self):
+        return f"SyncConfig | Tenant {self.tenant_id} | enabled={self.is_enabled}"
+
+    def generate_new_api_key(self) -> str:
+        """
+        Generates a new key, stores its hash, and returns the RAW key so the
+        caller (the تولید API view) can return it to the client exactly once.
+
+        Rotating the key (calling this again later) immediately invalidates
+        the previous key, since only the hash is stored and it is overwritten.
+        """
+        raw_key = _generate_raw_api_key()
+        self.api_key_hash = _hash_api_key(raw_key)
+        self.api_key_prefix = raw_key[:12]
+        self.api_key_generated_at = timezone.now()
+        self.save(
+            update_fields=["api_key_hash", "api_key_prefix", "api_key_generated_at"]
+        )
+        return raw_key
+
+    @staticmethod
+    def resolve_from_raw_key(raw_key: str) -> "SyncConfig | None":
+        """Used by the sync authentication class. O(1) hash lookup."""
+        if not raw_key:
+            return None
+        key_hash = _hash_api_key(raw_key)
+        return (
+            SyncConfig.objects.select_related("tenant")
+            .filter(api_key_hash=key_hash, is_enabled=True)
+            .first()
+        )
+
+
+class SyncFieldMapping(models.Model):
+    """
+    One row per (tenant, entity, field_name): the tenant's declaration of
+    which table/column in THEIR database corresponds to ONE of our
+    canonical fields.
+
+    entity distinguishes the two logical groups the UI collects
+    ("user" fields feed UsersUnNormalizedDataStaging /
+    UsersUnNormalizedData; "product" fields feed
+    ProductsUnNormalizedDataStaging / ProductsUnNormalizedData).
+
+    field_name must be a key in core.sync.field_registry.FIELD_REGISTRY for
+    the given entity — enforced in the serializer, not as a DB choices
+    constraint, so the registry stays the single source of truth and this
+    model never needs a migration when a field is added/removed.
+
+    client_table / client_column are free text: the tenant's own schema,
+    which we have zero visibility into ourselves.
+    """
+
+    ENTITY_CHOICES = [
+        ("user", "User"),
+        ("product", "Product"),
+    ]
+
+    tenant = models.ForeignKey(
+        "core.Tenant",
+        on_delete=models.CASCADE,
+        related_name="sync_field_mappings",
+    )
+    entity = models.CharField(max_length=10, choices=ENTITY_CHOICES)
+    field_name = models.CharField(
+        max_length=100,
+        help_text="One of our canonical field names, see core/sync/field_registry.py",
+    )
+
+    client_table = models.CharField(max_length=255, blank=True, default="")
+    client_column = models.CharField(max_length=255, blank=True, default="")
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "entity", "field_name"],
+                name="uq_sync_field_mapping_tenant_entity_field",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["tenant", "entity"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.entity}.{self.field_name} → "
+            f"{self.client_table}.{self.client_column} | Tenant {self.tenant_id}"
+        )
+
+    @property
+    def is_filled(self) -> bool:
+        return bool(self.client_table.strip()) and bool(self.client_column.strip())
+
+
+class SyncRun(models.Model):
+    """
+    Audit log — one row per ETL cycle attempt, including cycles that never
+    got past the ETL's own pre-flight schema check.
+
+    This is what the "تنظیم API" page's status banner reads from, and what
+    lets a tenant self-diagnose "why did my sync fail" without opening a
+    support ticket.
+    """
+
+    STATUS_CHOICES = [
+        ("running", "Running"),
+        ("success", "Success"),
+        ("partial", "Partial success"),
+        ("failed", "Failed"),
+    ]
+
+    FAILURE_STAGE_CHOICES = [
+        ("schema_table", "Missing table"),
+        ("schema_column", "Missing column"),
+        ("connection", "Could not connect to client database"),
+        ("ingest", "Rejected during ingest"),
+        ("unknown", "Unknown / unclassified"),
+    ]
+
+    tenant = models.ForeignKey(
+        "core.Tenant",
+        on_delete=models.CASCADE,
+        related_name="sync_runs",
+    )
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="running")
+
+    failure_stage = models.CharField(
+        max_length=20, choices=FAILURE_STAGE_CHOICES, null=True, blank=True
+    )
+    failure_detail = models.TextField(
+        blank=True,
+        default="",
+        help_text="Precise machine detail, e.g. the exact missing table/column name. "
+        "Not necessarily the same string shown to the end user.",
+    )
+
+    users_rows_received = models.PositiveIntegerField(default=0)
+    users_rows_accepted = models.PositiveIntegerField(default=0)
+    users_rows_rejected = models.PositiveIntegerField(default=0)
+
+    products_rows_received = models.PositiveIntegerField(default=0)
+    products_rows_accepted = models.PositiveIntegerField(default=0)
+    products_rows_rejected = models.PositiveIntegerField(default=0)
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["tenant", "-started_at"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"SyncRun #{self.id} | Tenant {self.tenant_id} | {self.status}"
+
+    @property
+    def user_facing_message(self) -> str:
+        """
+        The exact string the frontend should render for a failed run, per
+        the project spec: mismatched table/column names produce this fixed
+        message regardless of which table/column was the culprit (the
+        precise detail stays in failure_detail for support/debugging use,
+        not shown to the tenant directly).
+        """
+        if self.status == "failed" and self.failure_stage in (
+            "schema_table",
+            "schema_column",
+        ):
+            return (
+                "Table names or columns do not match, failed to find the "
+                "corresponding table name or column, please check the api "
+                "conf page again."
+            )
+        if self.status == "failed" and self.failure_stage == "connection":
+            return "Could not connect to your database. Please check your credentials."
+        if self.status == "partial":
+            return (
+                "Sync completed with some rows skipped due to invalid data. "
+                "See details for the affected rows."
+            )
+        if self.status == "success":
+            return "Sync completed successfully."
+        return ""
