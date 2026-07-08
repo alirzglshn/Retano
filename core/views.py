@@ -42,6 +42,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
+    
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
