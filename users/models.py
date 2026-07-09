@@ -152,9 +152,6 @@ class CustomUser(AbstractUser):
     )
 
     shop_name = models.CharField(max_length=255, default="نام فروشگاه")
-    shop_website_address = models.URLField(
-        max_length=100, default="آدرس وبسایت فروشگاه"
-    )
     is_premium = models.BooleanField(default=False)
     first_name = models.CharField(max_length=20, null=True, blank=True)
     last_name = models.CharField(max_length=20, null=True, blank=True)
