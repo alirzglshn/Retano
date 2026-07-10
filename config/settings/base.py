@@ -315,25 +315,11 @@ OTP_LENGTH = 6
 # ─────────────────────────────────────────────────────────────────────────────
 
 KAVENEGAR_API_KEY = os.environ.get("KAVENEGAR_API_KEY", "")
+SMSIR_API_KEY = os.environ.get("SMSIR_API_KEY", "")
+SMSIR_OTP_TEMPLATE_ID = os.environ.get("SMSIR_OTP_TEMPLATE_ID", "")
 
+OTP_PROVIDER = os.environ.get("OTP_PROVIDER", "sms_ir")
 
-
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ADD THIS BLOCK TO THE BOTTOM OF config/settings/base.py
-#
-# Placement rationale: base.py already establishes REDIS_URL using
-# os.environ.get(...) with a same-shape fallback for the cache backend
-# (DB index 1). Celery needs its own Redis logical DB so cache keys and
-# Celery's broker/result-backend keys never collide -- reusing DB 1 for
-# both would work technically but makes FLUSHDB-style debugging or cache
-# clearing dangerous (you could wipe Celery's queue by accident). This
-# block follows the exact same os.environ.get(...) + fallback pattern
-# already used throughout this file, and does not duplicate REDIS_URL --
-# it derives the Celery URLs from the same host, just different DB
-# numbers, so there's a single source of truth for the Redis host/port.
-# ─────────────────────────────────────────────────────────────────────────────
 
 # ── Celery ───────────────────────────────────────────────────────────────────
 # Reuses the same Redis instance as CACHES above, on separate logical DBs

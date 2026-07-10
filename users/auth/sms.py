@@ -83,7 +83,57 @@ class FakeOTPSender(OTPSender):
 
 
 def get_default_sender() -> OTPSender:
-    """Resolve the sender to use based on ``settings.OTP_FAKE_MODE``."""
+    """Resolve the sender to use based on settings.OTP_FAKE_MODE / OTP_PROVIDER."""
     if getattr(settings, "OTP_FAKE_MODE", False):
         return FakeOTPSender()
-    return KavenegarOTPSender()
+    provider = getattr(settings, "OTP_PROVIDER", "sms_ir")
+    if provider == "kavenegar":
+        return KavenegarOTPSender()
+    return SMSIROTPSender()
+
+
+class SMSIROTPSender(OTPSender):
+    """Sends OTP codes via the sms.ir Verify API."""
+
+    is_fake = False
+    _URL = "https://api.sms.ir/v1/send/verify"
+
+    def __init__(self, api_key: str | None = None, template_id: str | None = None) -> None:
+        self._api_key = api_key or getattr(settings, "SMSIR_API_KEY", "")
+        self._template_id = template_id or getattr(settings, "SMSIR_OTP_TEMPLATE_ID", "")
+        if not self._api_key or not self._template_id:
+            raise RuntimeError(
+                "SMSIR_API_KEY and SMSIR_OTP_TEMPLATE_ID must be configured, "
+                "or use OTP_FAKE_MODE for local development."
+            )
+
+    def send(self, *, phone_number: str, code: str) -> None:
+        import requests
+
+        # sms.ir expects the number without the leading '+'.
+        mobile = phone_number.lstrip("+")
+
+        payload = {
+            "mobile": mobile,
+            "templateId": int(self._template_id),
+            "parameters": [{"name": "Code", "value": code}],
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/plain",
+            "x-api-key": self._api_key,
+        }
+
+        try:
+            response = requests.post(self._URL, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.exception("sms.ir send failed for %s", phone_number)
+            raise RuntimeError(f"sms.ir SMS send failed: {exc}") from exc
+
+        data = response.json()
+        if data.get("status") != 1:
+            logger.exception(
+                "sms.ir rejected OTP for %s: %s", phone_number, data.get("message")
+            )
+            raise RuntimeError(f"sms.ir SMS send failed: {data.get('message')}")
