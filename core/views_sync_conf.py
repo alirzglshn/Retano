@@ -18,6 +18,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.schema import SYNC_CONFIG_STATUS_SCHEMA, SYNC_FIELD_MAPPING_GET_SCHEMA, SYNC_FIELD_MAPPING_PUT_SCHEMA, SYNC_API_KEY_GENERATE_SCHEMA
 from core.models import SyncConfig, SyncFieldMapping
 from core.serializers_sync import (
     SyncApiKeyGeneratedSerializer,
@@ -37,6 +38,7 @@ def _get_or_create_sync_config(tenant) -> SyncConfig:
     return sync_config
 
 
+@SYNC_CONFIG_STATUS_SCHEMA 
 class SyncConfigStatusView(APIView):
     """
     GET /api/v1/sync-conf/status/
@@ -69,6 +71,8 @@ class SyncFieldMappingView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
+
+    @SYNC_FIELD_MAPPING_GET_SCHEMA
     def get(self, request):
         tenant = _tenant(request)
         existing = {
@@ -96,7 +100,9 @@ class SyncFieldMappingView(APIView):
                     rows.append(SyncFieldMappingReadSerializer(mapping).data)
 
         return Response({"mappings": rows}, status=status.HTTP_200_OK)
+    
 
+    @SYNC_FIELD_MAPPING_PUT_SCHEMA
     def put(self, request):
         tenant = _tenant(request)
         serializer = SyncConfigMappingBulkSerializer(data=request.data)
@@ -119,7 +125,7 @@ class SyncFieldMappingView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
+@SYNC_API_KEY_GENERATE_SCHEMA 
 class SyncApiKeyGenerateView(APIView):
     """
     POST /api/v1/sync-conf/generate-key/  ("تولید API" button)

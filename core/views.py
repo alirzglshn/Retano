@@ -6,7 +6,7 @@ from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from core.schema import CAMPAIGN_VIEWSET_SCHEMA, CAMPAIGN_TOGGLE_SCHEMA, CAMPAIGN_META_SCHEMA
 from .models import (
     Campaign,
 )
@@ -28,7 +28,7 @@ from .serializers import (
 
 
 
-
+@CAMPAIGN_VIEWSET_SCHEMA
 class CampaignViewSet(viewsets.ModelViewSet):
     """
     /api/v1/campaigns/                 — list, create
@@ -69,6 +69,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
         # authenticated user's own Tenant (created via signal at registration).
         serializer.save(tenant=self.request.user.tenant)
 
+
+    @CAMPAIGN_TOGGLE_SCHEMA    
     @action(detail=True, methods=["patch"])
     def toggle(self, request, pk=None):
         """
@@ -95,7 +97,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
 
 
-
+@CAMPAIGN_META_SCHEMA
 class CampaignMetaView(APIView):
     """
     GET /api/v1/campaigns/meta/

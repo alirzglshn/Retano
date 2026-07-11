@@ -13,7 +13,7 @@ from .serializers import (
     SendMessageSerializer,
     SmsPurchaseRequestSerializer,
 )
-
+from core.schema import CHAT_VIEW_SCHEMA, SUPPORT_CHAT_VIEW_SCHEMA, UNREAD_COUNT_SCHEMA, SMS_PURCHASE_REQUEST_SCHEMA
 
 class IsStaffUser(permissions.BasePermission):
     """Allow only Django staff users (support team)."""
@@ -22,6 +22,7 @@ class IsStaffUser(permissions.BasePermission):
         return bool(request.user and request.user.is_staff)
 
 
+@CHAT_VIEW_SCHEMA 
 class ChatView(APIView):
     """
     GET  /api/v1/tickets/chat/
@@ -71,6 +72,7 @@ class ChatView(APIView):
         )
 
 
+@SUPPORT_CHAT_VIEW_SCHEMA
 class SupportChatView(APIView):
     """
     GET  /api/v1/tickets/support/{tenant_id}/
@@ -129,6 +131,7 @@ class SupportChatView(APIView):
         )
 
 
+@UNREAD_COUNT_SCHEMA 
 class UnreadCountView(APIView):
     """
     GET /api/v1/tickets/unread/
@@ -148,6 +151,7 @@ class UnreadCountView(APIView):
         return Response({"unread_count": count}, status=status.HTTP_200_OK)
 
 
+@SMS_PURCHASE_REQUEST_SCHEMA
 class SmsPurchaseRequestView(APIView):
     """
     POST /api/v1/sms/purchase-request/

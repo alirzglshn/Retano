@@ -10,7 +10,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.exceptions import OTPError
-
+from core.schema import OTP_REQUEST_SCHEMA, OTP_VERIFY_SCHEMA, REGISTER_SCHEMA, LOGOUT_SCHEMA, PROFILE_SCHEMA, ACCOUNT_STATUS_SCHEMA
 from .auth.otp import OTPService
 from .serializers import (
     LogoutSerializer,
@@ -24,10 +24,10 @@ User = get_user_model()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Authentication (Phase 2)
+# Authentication 
 # ─────────────────────────────────────────────────────────────────────────────
 
-
+@OTP_REQUEST_SCHEMA
 class OTPRequestView(APIView):
     """POST /api/v1/auth/otp/request/"""
 
@@ -52,7 +52,7 @@ class OTPRequestView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
 
-
+@OTP_VERIFY_SCHEMA
 class OTPVerifyView(APIView):
     """
     POST /api/v1/auth/otp/verify/
@@ -92,6 +92,7 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
 
+    @REGISTER_SCHEMA
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -109,6 +110,7 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
+@LOGOUT_SCHEMA
 class LogoutView(APIView):
     """POST /api/v1/auth/logout/ — blacklists the supplied refresh token."""
 
@@ -128,10 +130,10 @@ class LogoutView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Profile (Phase 3)
+# Profile 
 # ─────────────────────────────────────────────────────────────────────────────
 
-
+@PROFILE_SCHEMA
 class ProfileView(generics.RetrieveUpdateAPIView):
     """GET/PATCH /api/v1/profile/ — the authenticated user's own profile."""
 
@@ -145,6 +147,7 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return user
 
 
+@ACCOUNT_STATUS_SCHEMA 
 class AccountStatusView(APIView):
     """
     GET /api/v1/account/status/

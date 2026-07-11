@@ -19,6 +19,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.schema import SYNC_CONFIG_FETCH_SCHEMA, SYNC_USER_INGEST_SCHEMA, SYNC_PRODUCT_INGEST_SCHEMA, SYNC_REPORT_SCHEMA
 from core.models import SyncFieldMapping, SyncRun
 from core.serializers_sync import (
     SyncConfigFetchSerializer,
@@ -54,7 +55,7 @@ class BaseSyncAPIView(APIView):
     def tenant(self):
         return self.request.auth.tenant
 
-
+@SYNC_CONFIG_FETCH_SCHEMA
 class SyncConfigFetchView(BaseSyncAPIView):
     """
     GET /api/v1/sync/config/
@@ -101,6 +102,7 @@ class SyncConfigFetchView(BaseSyncAPIView):
         return Response(payload, status=status.HTTP_200_OK)
 
 
+@SYNC_USER_INGEST_SCHEMA
 class UserSyncIngestView(BaseSyncAPIView):
     """
     POST /api/v1/sync/data/users/
@@ -123,7 +125,7 @@ class UserSyncIngestView(BaseSyncAPIView):
         result = ingest_user_rows(self.tenant, rows)
         return Response(result.as_dict(), status=status.HTTP_200_OK)
 
-
+@SYNC_PRODUCT_INGEST_SCHEMA
 class ProductSyncIngestView(BaseSyncAPIView):
     """POST /api/v1/sync/data/products/ — see UserSyncIngestView docstring."""
 
@@ -136,6 +138,7 @@ class ProductSyncIngestView(BaseSyncAPIView):
         return Response(result.as_dict(), status=status.HTTP_200_OK)
 
 
+@SYNC_REPORT_SCHEMA
 class SyncReportView(BaseSyncAPIView):
     """
     POST /api/v1/sync/report/

@@ -121,7 +121,6 @@ class ProfileSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "shop_name",
-            "shop_website_address",
             "website_address",
             "position",
             "birth_date",

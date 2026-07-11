@@ -26,7 +26,7 @@ from django.db import connection
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from core.schema import DASHBOARD_SCHEMA
 from core.models import Campaign
 from core.utils.jalali import (
     current_jalali_year,
@@ -50,7 +50,7 @@ DASHBOARD_CACHE_TTL = 60
 #   کل کمپین‌ها       -> all campaigns for this tenant, no filter
 # ─────────────────────────────────────────────────────────────────────────────
 
-
+@DASHBOARD_SCHEMA
 class DashboardView(APIView):
     """
     GET /api/v1/dashboard/

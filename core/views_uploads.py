@@ -23,7 +23,7 @@ from rest_framework import permissions, status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from core.schema import CUSTOMER_UPLOAD_SCHEMA, PRODUCT_UPLOAD_SCHEMA, COUPON_UPLOAD_SCHEMA, UPLOAD_JOB_STATUS_SCHEMA, SAMPLE_FILES_SCHEMA
 from core.models import Coupon
 from core.models import UploadJob
 from core.services.storage import upload_fileobj_to_storage
@@ -119,6 +119,7 @@ def _accepted_response(job: UploadJob):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+@CUSTOMER_UPLOAD_SCHEMA 
 class CustomerUploadView(APIView):
     """
     POST /api/v1/uploads/customers/
@@ -188,6 +189,7 @@ class CustomerUploadView(APIView):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+@PRODUCT_UPLOAD_SCHEMA
 class ProductUploadView(APIView):
     """
     POST /api/v1/uploads/products/
@@ -250,7 +252,7 @@ class ProductUploadView(APIView):
 # Coupons upload
 # ─────────────────────────────────────────────────────────────────────────────
 
-
+@COUPON_UPLOAD_SCHEMA
 class CouponUploadView(APIView):
     """
     POST /api/v1/uploads/coupons/
@@ -335,7 +337,7 @@ class CouponUploadView(APIView):
 # Job status polling endpoint
 # ─────────────────────────────────────────────────────────────────────────────
 
-
+@UPLOAD_JOB_STATUS_SCHEMA
 class UploadJobStatusView(APIView):
     """
     GET /api/v1/uploads/jobs/{id}/
@@ -363,7 +365,7 @@ class UploadJobStatusView(APIView):
 # Sample files — unchanged from the synchronous version
 # ─────────────────────────────────────────────────────────────────────────────
 
-
+@SAMPLE_FILES_SCHEMA 
 class SampleFilesView(APIView):
     """
     GET /api/v1/uploads/sample-files/

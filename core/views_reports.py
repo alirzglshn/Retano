@@ -25,7 +25,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from django.db import connection
-
+from core.schema import TRENDS_REPORT_SCHEMA, SALES_RANGE_REPORT_SCHEMA, SEGMENTS_REPORT_SCHEMA, ACTIVE_USERS_REPORT_SCHEMA, RETENTION_REPORT_SCHEMA
 from core.utils.jalali import last_n_jalali_years, current_jalali_year
 from core.utils.analytics import (
     get_yearly_trends,
@@ -70,9 +70,10 @@ ACTIVE_SEGMENTS = {"vip", "new", "active"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# تعداد مشتریان / میزان فروش / CLV
+# CLV
 # ─────────────────────────────────────────────────────────────────────────────
 
+@TRENDS_REPORT_SCHEMA
 class TrendsReportView(APIView):
     """
     GET /api/v1/reports/trends/
@@ -180,6 +181,7 @@ SALES_RANGE_BUCKETS = [
 ]
 
 
+@SALES_RANGE_REPORT_SCHEMA
 class SalesRangeReportView(APIView):
     """
     GET /api/v1/reports/sales-ranges/
@@ -248,9 +250,10 @@ class SalesRangeReportView(APIView):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# دسته‌بندی RFM
+# RFM
 # ─────────────────────────────────────────────────────────────────────────────
 
+@SEGMENTS_REPORT_SCHEMA
 class SegmentsReportView(APIView):
     """
     GET /api/v1/reports/segments/
@@ -322,6 +325,7 @@ class SegmentsReportView(APIView):
 # درصد کاربران فعال
 # ─────────────────────────────────────────────────────────────────────────────
 
+@ACTIVE_USERS_REPORT_SCHEMA 
 class ActiveUsersReportView(APIView):
     """
     GET /api/v1/reports/active-users/
@@ -393,6 +397,7 @@ class ActiveUsersReportView(APIView):
 # نرخ نگهداری / نرخ ریزش  (yearly retention / churn — shared logic)
 # ─────────────────────────────────────────────────────────────────────────────
 
+@RETENTION_REPORT_SCHEMA 
 class RetentionReportView(APIView):
     """
     GET /api/v1/reports/retention/

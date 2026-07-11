@@ -21,7 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from tickets.models import Message, Thread
-
+from core.schema import SMS_PACKAGES_SCHEMA, SMS_ACTIVATION_REQUEST_SCHEMA, SMS_BALANCE_SCHEMA
 # ─────────────────────────────────────────────────────────────────────────────
 # Pricing configuration
 # Single source of truth. Change these constants when pricing changes.
@@ -70,6 +70,7 @@ class SMSActivationRequestSerializer(serializers.Serializer):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+@SMS_PACKAGES_SCHEMA
 class SMSPackagesView(APIView):
     """
     GET /api/v1/sms/packages/
@@ -110,6 +111,7 @@ class SMSPackagesView(APIView):
         )
 
 
+@SMS_ACTIVATION_REQUEST_SCHEMA
 class SMSActivationRequestView(APIView):
     """
     POST /api/v1/sms/request-activation/
@@ -154,6 +156,7 @@ class SMSActivationRequestView(APIView):
         )
 
 
+@SMS_BALANCE_SCHEMA 
 class SMSBalanceView(APIView):
     """
     GET /api/v1/sms/balance/

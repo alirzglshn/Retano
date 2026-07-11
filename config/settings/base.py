@@ -48,8 +48,9 @@ THIRD_PARTY_APPS = [
     "drf_spectacular",
 ]
 
+
 LOCAL_APPS = [
-    "core",
+    "core.apps.CoreConfig",
     "users",
     "tickets",
 ]
@@ -138,8 +139,7 @@ CACHES = {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             "SOCKET_CONNECT_TIMEOUT": 5,
             "SOCKET_TIMEOUT": 5,
-            "COMPRESSOR": "django_redis.compressor.zlib.ZlibCompressor",
-            "IGNORE_EXCEPTIONS": True,  # degrade gracefully if Redis is down
+            "IGNORE_EXCEPTIONS": True,  
         },
         "KEY_PREFIX": "retano",
         "TIMEOUT": 300,  # 5 minutes default
