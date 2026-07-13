@@ -1,12 +1,13 @@
 # core/utils/excel_mapper.py
 
 import pandas as pd
-from .date_parser import FlexibleDateParser
 
+from .date_parser import FlexibleDateParser
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CustomerExcelMapper  — unchanged from migration 0044
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class CustomerExcelMapper:
     """
@@ -32,25 +33,25 @@ class CustomerExcelMapper:
     ]
 
     FIELDS_DESCRIPTION = {
-        "internal_id":          "شناسه یکتای مشتری (مثلاً کد ملی یا شماره موبایل) - Required",
-        "first_name":           "نام مشتری - Required",
-        "last_name":            "نام خانوادگی مشتری - Required",
-        "internal_order_id":    "شناسه یکتای سفارش - Required",
-        "order_date":           (
+        "internal_id": "شناسه یکتای مشتری (مثلاً کد ملی یا شماره موبایل) - Required",
+        "first_name": "نام مشتری - Required",
+        "last_name": "نام خانوادگی مشتری - Required",
+        "internal_order_id": "شناسه یکتای سفارش - Required",
+        "order_date": (
             "تاریخ ثبت سفارش (هر فرمتی قابل قبول است: "
             "2024-08-12, 12/08/2024, Jan 12 2024, etc.) - Required"
         ),
-        "quantity":             "تعداد محصول سفارش داده شده - Required",
-        "then_product_price":   "قیمت محصول در زمان خرید (ثابت و تغییر نمی‌کند) - Required",
-        "phone_number":         "شماره تلفن مشتری - Required",
-        "internal_product_id":  "شناسه یکتای محصول (ربط به فایل محصولات) - Required",
-        "gender":               "جنسیت مشتری (آقایان/بانوان) - Required",
+        "quantity": "تعداد محصول سفارش داده شده - Required",
+        "then_product_price": "قیمت محصول در زمان خرید (ثابت و تغییر نمی‌کند) - Required",
+        "phone_number": "شماره تلفن مشتری - Required",
+        "internal_product_id": "شناسه یکتای محصول (ربط به فایل محصولات) - Required",
+        "gender": "جنسیت مشتری (آقایان/بانوان) - Required",
     }
 
     INSTRUCTIONS = {
-        "file_type":       "Customers File",
+        "file_type": "Customers File",
         "required_fields": len(REQUIRED_FIELDS),
-        "fields_list":     REQUIRED_FIELDS,
+        "fields_list": REQUIRED_FIELDS,
         "note": (
             "شماره ایندکس ستون‌ها از ۰ شروع می‌شود. "
             "مثال: ستون اول = 0، ستون دوم = 1، ستون سوم = 2"
@@ -116,16 +117,16 @@ class CustomerExcelMapper:
     @classmethod
     def get_sample_mapping(cls):
         return {
-            "internal_id":         0,
-            "first_name":          1,
-            "last_name":           2,
-            "internal_order_id":   3,
-            "order_date":          4,
-            "quantity":            5,
-            "then_product_price":  6,
-            "phone_number":        7,
+            "internal_id": 0,
+            "first_name": 1,
+            "last_name": 2,
+            "internal_order_id": 3,
+            "order_date": 4,
+            "quantity": 5,
+            "then_product_price": 6,
+            "phone_number": 7,
             "internal_product_id": 8,
-            "gender":              9,
+            "gender": 9,
         }
 
 
@@ -135,6 +136,7 @@ class CustomerExcelMapper:
 # first_product_attribute / second_product_attribute added.
 # Empty cells → NULL (no normalisation whatsoever).
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class ProductExcelMapper:
     """
@@ -160,19 +162,19 @@ class ProductExcelMapper:
     ]
 
     FIELDS_DESCRIPTION = {
-        "internal_product_id":      "شناسه یکتای محصول - Required",
-        "product_name":             "نام محصول - Required",
-        "category":                 "دسته‌بندی محصول - Required",
-        "current_product_price":    "قیمت فعلی محصول (برای آنالیتیکس استفاده می‌شود) - Required",
-        "first_product_attribute":  "ویژگی اول محصول (در صورت خالی بودن، NULL ذخیره می‌شود) - Required",
+        "internal_product_id": "شناسه یکتای محصول - Required",
+        "product_name": "نام محصول - Required",
+        "category": "دسته‌بندی محصول - Required",
+        "current_product_price": "قیمت فعلی محصول (برای آنالیتیکس استفاده می‌شود) - Required",
+        "first_product_attribute": "ویژگی اول محصول (در صورت خالی بودن، NULL ذخیره می‌شود) - Required",
         "second_product_attribute": "ویژگی دوم محصول (در صورت خالی بودن، NULL ذخیره می‌شود) - Required",
-        "product_link":             "لینک محصول - Required",
+        "product_link": "لینک محصول - Required",
     }
 
     INSTRUCTIONS = {
-        "file_type":       "Products File",
+        "file_type": "Products File",
         "required_fields": len(REQUIRED_FIELDS),
-        "fields_list":     REQUIRED_FIELDS,
+        "fields_list": REQUIRED_FIELDS,
         "note": (
             "شماره ایندکس ستون‌ها از ۰ شروع می‌شود. "
             "مثال: ستون اول = 0، ستون دوم = 1، ستون سوم = 2"
@@ -237,19 +239,20 @@ class ProductExcelMapper:
     @classmethod
     def get_sample_mapping(cls):
         return {
-            "internal_product_id":      0,
-            "product_name":             1,
-            "category":                 2,
-            "current_product_price":    3,
-            "first_product_attribute":  4,
+            "internal_product_id": 0,
+            "product_name": 1,
+            "category": 2,
+            "current_product_price": 3,
+            "first_product_attribute": 4,
             "second_product_attribute": 5,
-            "product_link":             6,
+            "product_link": 6,
         }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CouponExcelMapper  — unchanged
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class CouponExcelMapper:
 
@@ -259,14 +262,14 @@ class CouponExcelMapper:
     ]
 
     FIELDS_DESCRIPTION = {
-        "coupon_code":          "کد تخفیف یکتا - Required",
-        "discount_percentage":  "درصد تخفیف (عدد بین ۰ تا ۱۰۰) - Required",
+        "coupon_code": "کد تخفیف یکتا - Required",
+        "discount_percentage": "درصد تخفیف (عدد بین ۰ تا ۱۰۰) - Required",
     }
 
     INSTRUCTIONS = {
-        "file_type":       "Coupons File",
+        "file_type": "Coupons File",
         "required_fields": len(REQUIRED_FIELDS),
-        "fields_list":     REQUIRED_FIELDS,
+        "fields_list": REQUIRED_FIELDS,
         "note": "شماره ایندکس ستون‌ها از ۰ شروع می‌شود. مثال: ستون اول = 0، ستون دوم = 1",
     }
 
@@ -318,6 +321,6 @@ class CouponExcelMapper:
     @classmethod
     def get_sample_mapping(cls):
         return {
-            "coupon_code":         0,
+            "coupon_code": 0,
             "discount_percentage": 1,
         }

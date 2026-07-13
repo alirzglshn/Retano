@@ -1,14 +1,27 @@
+# tickets/urls.py
+
 from django.urls import path
+
 from .views import (
-    TicketListView,
-    TicketCreateView,
-    TicketDetailView,
-    TicketStatusUpdateView,
+    ChatView,
+    SmsPurchaseRequestView,
+    SupportChatView,
+    UnreadCountView,
 )
 
 urlpatterns = [
-    path("", TicketListView.as_view(), name="ticket-list"),
-    path("create/", TicketCreateView.as_view(), name="ticket-create"),
-    path("<int:pk>/", TicketDetailView.as_view(), name="ticket-detail"),
-    path("<int:pk>/status/", TicketStatusUpdateView.as_view(), name="ticket-status-update"),
+    # Tenant-facing
+    path("tickets/chat/", ChatView.as_view(), name="tickets-chat"),
+    path("tickets/unread/", UnreadCountView.as_view(), name="tickets-unread"),
+    path(
+        "sms/purchase-request/",
+        SmsPurchaseRequestView.as_view(),
+        name="sms-purchase-request",
+    ),
+    # Support-facing (staff only)
+    path(
+        "tickets/support/<int:tenant_id>/",
+        SupportChatView.as_view(),
+        name="tickets-support-chat",
+    ),
 ]

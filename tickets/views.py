@@ -1,110 +1,225 @@
-from django.urls import reverse_lazy
-from django.views.generic import (
-    CreateView,
-    UpdateView,
-    DetailView,
-    ListView,
+# tickets/views.py
+
+from django.utils import timezone
+
+from rest_framework import permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from core.models import Tenant
+from .models import Message, Thread
+from .serializers import (
+    MessageSerializer,
+    SendMessageSerializer,
+    SmsPurchaseRequestSerializer,
 )
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import get_object_or_404, redirect
-from django.db.models import Prefetch
+from core.schema import CHAT_VIEW_SCHEMA, SUPPORT_CHAT_VIEW_SCHEMA, UNREAD_COUNT_SCHEMA, SMS_PURCHASE_REQUEST_SCHEMA
 
-from .models import Ticket, TicketMessage
-from .forms import (
-    TicketCreateForm,
-    TicketReplyForm,
-    TicketStatusUpdateForm,
-)
+class IsStaffUser(permissions.BasePermission):
+    """Allow only Django staff users (support team)."""
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_staff)
 
 
-class TicketListView(LoginRequiredMixin, ListView):
-    model = Ticket
-    template_name = "tickets/tickets-list.html"
-    context_object_name = "tickets"
-    paginate_by = 20
+@CHAT_VIEW_SCHEMA 
+class ChatView(APIView):
+    """
+    GET  /api/v1/tickets/chat/
+        Returns all messages in the tenant's thread, oldest first.
+        Also updates tenant_last_seen_at so the unread badge resets.
 
-    def get_queryset(self):
-        return Ticket.objects.filter(
-            user=self.request.user
-        ).order_by("-created_at")
+    POST /api/v1/tickets/chat/
+        Tenant sends a new message.
+        Body: {"body": "..."}
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_thread(self, request) -> Thread:
+        tenant = request.user.tenant
+        thread, _ = Thread.objects.get_or_create(tenant=tenant)
+        return thread
+
+    def get(self, request):
+        thread = self._get_thread(request)
+
+        # Mark as seen — reset unread badge
+        thread.tenant_last_seen_at = timezone.now()
+        thread.save(update_fields=["tenant_last_seen_at"])
+
+        messages = thread.messages.select_related("sender").all()
+        serializer = MessageSerializer(messages, many=True)
+        return Response(
+            {"thread_id": thread.id, "messages": serializer.data},
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        serializer = SendMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        thread = self._get_thread(request)
+        message = Message.objects.create(
+            thread=thread,
+            sender_type=Message.TENANT,
+            sender=request.user,
+            body=serializer.validated_data["body"],
+        )
+        return Response(
+            MessageSerializer(message).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
-class TicketCreateView(LoginRequiredMixin, CreateView):
-    model = Ticket
-    form_class = TicketCreateForm
-    template_name = "tickets/ticket-create.html"
-    success_url = reverse_lazy("ticket-list")
+@SUPPORT_CHAT_VIEW_SCHEMA
+class SupportChatView(APIView):
+    """
+    GET  /api/v1/tickets/support/{tenant_id}/
+        Support reads a specific tenant's thread.
 
-    def form_valid(self, form):
-        ticket = form.save(commit=False)
-        ticket.user = self.request.user
-        ticket.save()
+    POST /api/v1/tickets/support/{tenant_id}/
+        Support sends a reply to a tenant's thread.
+        Body: {"body": "..."}
 
-        # First message is usually created with the ticket
-        initial_message = self.request.POST.get("message")
-        if initial_message:
-            TicketMessage.objects.create(
-                ticket=ticket,
-                user=self.request.user,
-                message=initial_message,
+    Only accessible to staff users.
+    """
+
+    permission_classes = [IsStaffUser]
+
+    def _get_thread(self, tenant_id: int) -> Thread | None:
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return None
+        thread, _ = Thread.objects.get_or_create(tenant=tenant)
+        return thread
+
+    def get(self, request, tenant_id: int):
+        thread = self._get_thread(tenant_id)
+        if thread is None:
+            return Response(
+                {"detail": "Tenant not found."},
+                status=status.HTTP_404_NOT_FOUND,
             )
-
-        return redirect("ticket-detail", pk=ticket.pk)
-
-
-class TicketDetailView(LoginRequiredMixin, DetailView):
-    model = Ticket
-    template_name = "tickets/chat.html"
-    context_object_name = "ticket"
-
-    def get_object(self):
-        return get_object_or_404(
-            Ticket,
-            pk=self.kwargs["pk"],
-            user=self.request.user
+        messages = thread.messages.select_related("sender").all()
+        serializer = MessageSerializer(messages, many=True)
+        return Response(
+            {"thread_id": thread.id, "messages": serializer.data},
+            status=status.HTTP_200_OK,
         )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def post(self, request, tenant_id: int):
+        thread = self._get_thread(tenant_id)
+        if thread is None:
+            return Response(
+                {"detail": "Tenant not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = SendMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        context["messages"] = self.object.messages.select_related("user").order_by("created_at")
-
-        context["reply_form"] = TicketReplyForm()
-        context["status_form"] = TicketStatusUpdateForm(instance=self.object)
-
-        return context
-
-    def post(self, request, *args, **kwargs):
-        """
-        Handles ticket replies.
-        """
-        self.object = self.get_object()
-        form = TicketReplyForm(request.POST, request.FILES)
-
-        if form.is_valid():
-            message = form.save(commit=False)
-            message.ticket = self.object
-            message.user = request.user
-            message.is_staff_reply = request.user.is_staff
-            message.save()
-
-
-        return redirect("ticket-detail", pk=self.object.pk)
-
-
-class TicketStatusUpdateView(LoginRequiredMixin, UpdateView):
-    model = Ticket
-    form_class = TicketStatusUpdateForm
-    template_name = "tickets/ticket-status-update.html"
-
-    def get_object(self):
-        return get_object_or_404(
-            Ticket,
-            pk=self.kwargs["pk"],
-            user=self.request.user
+        message = Message.objects.create(
+            thread=thread,
+            sender_type=Message.SUPPORT,
+            sender=request.user,
+            body=serializer.validated_data["body"],
+        )
+        return Response(
+            MessageSerializer(message).data,
+            status=status.HTTP_201_CREATED,
         )
 
-    def get_success_url(self):
-        return reverse_lazy("ticket-detail", kwargs={"pk": self.object.pk})
+
+@UNREAD_COUNT_SCHEMA 
+class UnreadCountView(APIView):
+    """
+    GET /api/v1/tickets/unread/
+    Returns the unread support message count for the dashboard badge.
+    Does NOT update tenant_last_seen_at — polling this endpoint
+    does not clear the badge.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            thread = request.user.tenant.thread
+            count = thread.unread_count()
+        except Thread.DoesNotExist:
+            count = 0
+        return Response({"unread_count": count}, status=status.HTTP_200_OK)
 
 
+@SMS_PURCHASE_REQUEST_SCHEMA
+class SmsPurchaseRequestView(APIView):
+    """
+    POST /api/v1/sms/purchase-request/
+
+    Tenant clicks "خرید و فعال‌سازی" on the SMS purchase screen. There is
+    no online payment and no Order/Invoice/Payment model — this endpoint
+    simply drops a normal tenant message into the tenant's existing
+    support chat thread, stating how many SMS were requested and (if the
+    frontend sent them) the price figures it calculated. Support then
+    handles the sale manually, exactly like any other chat message, and
+    an admin edits CustomUser.num_available_sms by hand once payment is
+    received.
+
+    All pricing fields are optional and are never trusted for anything
+    beyond display in the message body — the backend does not compute,
+    validate, or store a price anywhere.
+
+    Body:
+        {
+            "sms_count": 1000,
+            "unit_price": 2000,          # optional
+            "discount_percent": 5,        # optional
+            "discount_amount": 100000,    # optional
+            "final_price": 1900000        # optional
+        }
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = SmsPurchaseRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        tenant = request.user.tenant
+        thread, _ = Thread.objects.get_or_create(tenant=tenant)
+
+        body = self._build_message_body(data)
+
+        message = Message.objects.create(
+            thread=thread,
+            sender_type=Message.TENANT,
+            sender=request.user,
+            body=body,
+        )
+
+        return Response(
+            MessageSerializer(message).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @staticmethod
+    def _build_message_body(data: dict) -> str:
+        """
+        Renders the chat message support will see. Only includes the
+        pricing lines the frontend actually sent — none of them are
+        required, so the message degrades gracefully to just the
+        quantity if that's all that was provided.
+        """
+        lines = [f"درخواست خرید {data['sms_count']} عدد پیامک."]
+
+        if data.get("unit_price") is not None:
+            lines.append(f"هزینه هر پیام: {data['unit_price']} تومان")
+        if data.get("discount_percent") is not None:
+            lines.append(f"درصد تخفیف: {data['discount_percent']}%")
+        if data.get("discount_amount") is not None:
+            lines.append(f"مبلغ تخفیف: {data['discount_amount']} تومان")
+        if data.get("final_price") is not None:
+            lines.append(f"هزینه نهایی: {data['final_price']} تومان")
+
+        return "\n".join(lines)

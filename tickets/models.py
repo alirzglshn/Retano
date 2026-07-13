@@ -1,63 +1,93 @@
-# models.py
+# tickets/models.py
+"""
+Ticketing system — one chat thread per tenant.
+
+Architecture:
+    Each Tenant has exactly one Thread (created on first message).
+    Messages belong to a Thread and are sent by either the tenant
+    (sender_type='tenant') or support (sender_type='support').
+
+    Unread count for the dashboard badge = number of support messages
+    sent after the tenant's last_seen_at timestamp on the Thread.
+"""
+
 from django.conf import settings
 from django.db import models
 
-User = settings.AUTH_USER_MODEL
+from core.models import Tenant
 
 
-# class TicketCategory(models.Model):
-#     name = models.CharField(max_length=100)
-#     description = models.TextField(blank=True)
+class Thread(models.Model):
+    """
+    One chat thread per tenant.
+    Created automatically on first message via get_or_create.
+    """
 
-#     def str(self):
-#         return self.name
-
-
-class Ticket(models.Model):
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        IN_PROGRESS = "in_progress", "In Progress"
-        RESOLVED = "resolved", "Resolved"
-        CLOSED = "closed", "Closed"
-
-    class Priority(models.TextChoices):
-        LOW = "low", "Low"
-        MEDIUM = "medium", "Medium"
-        HIGH = "high", "High"
-        URGENT = "urgent", "Urgent"
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tickets")
-    subject = models.CharField(max_length=255)
-    
-    status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.OPEN
-    )
-    priority = models.CharField(
-        max_length=20, choices=Priority.choices, default=Priority.MEDIUM
+    tenant = models.OneToOneField(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="thread",
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Tenant's last visit to the chat — used to compute unread badge count.
+    # NULL means the tenant has never opened the chat.
+    tenant_last_seen_at = models.DateTimeField(null=True, blank=True)
 
-    def str(self):
-        return f"#{self.id} - {self.subject}"
+    def __str__(self):
+        return f"Thread — Tenant #{self.tenant_id}"
+
+    def unread_count(self) -> int:
+        """
+        Number of support messages the tenant has not yet seen.
+        A message is unseen if it was created after tenant_last_seen_at.
+        """
+        qs = self.messages.filter(sender_type=Message.SUPPORT)
+        if self.tenant_last_seen_at:
+            qs = qs.filter(created_at__gt=self.tenant_last_seen_at)
+        return qs.count()
 
 
-class TicketMessage(models.Model):
-    ticket = models.ForeignKey(
-        Ticket, on_delete=models.CASCADE, related_name="messages"
+class Message(models.Model):
+    """
+    A single message in a Thread.
+    sender_type distinguishes tenant messages from support messages.
+    """
+
+    TENANT = "tenant"
+    SUPPORT = "support"
+    SENDER_TYPE_CHOICES = [
+        (TENANT, "Tenant"),
+        (SUPPORT, "Support"),
+    ]
+
+    thread = models.ForeignKey(
+        Thread,
+        on_delete=models.CASCADE,
+        related_name="messages",
     )
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    message = models.TextField()
+    sender_type = models.CharField(
+        max_length=10,
+        choices=SENDER_TYPE_CHOICES,
+    )
+    # For tenant messages: the CustomUser who sent it.
+    # For support messages: the staff CustomUser who replied.
+    # NULL is allowed so support can post without a user account if needed.
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_messages",
+    )
+    body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
-    is_staff_reply = models.BooleanField(default=False)
 
-    def str(self):
-        return f"Message by {self.user} on Ticket #{self.ticket.id}"
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["thread", "created_at"]),
+            models.Index(fields=["sender_type"]),
+        ]
 
-
-# class TicketAttachment(models.Model):
-#     message = models.ForeignKey(
-#         TicketMessage, on_delete=models.CASCADE, related_name="attachments"
-#     )
-#     file = models.FileField(upload_to="ticket_attachments/")
-#     uploaded_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"[{self.sender_type}] Thread#{self.thread_id} @ {self.created_at:%Y-%m-%d %H:%M}"

@@ -1,0 +1,39 @@
+[flake8]
+max-line-length = 88
+extend-ignore =
+    # E203: whitespace before ':' — conflicts with Black
+    E203,
+    # W503: line break before binary operator — conflicts with Black
+    W503,
+    # E501: line too long — Black handles this
+    E501,
+    # B950: line too long — bugbear version of E501
+    B950,
+per-file-ignores =
+    # F401: imported but unused — allow in __init__.py files
+    */__init__.py:F401
+    # F811: redefinition of unused name — allow in settings files (star imports)
+    config/settings/*.py:F401,F403,F811
+    # Allow assert statements in tests
+    */tests.py:S101
+    */test_*.py:S101
+exclude =
+    .git,
+    __pycache__,
+    migrations,
+    staticfiles,
+    media,
+    venv,
+    supabasevenv,
+    env,
+    .venv,
+    *.egg-info,
+    dist,
+    build,
+    .tox
+extend-select =
+    # bugbear
+    B,
+    # bugbear opinions
+    B9,
+max-complexity = 12
