@@ -1,0 +1,127 @@
+# .github/workflows/cd.yml
+#
+# Runs on every push to main. Builds the Docker image, pushes it to GitHub
+# Container Registry (ghcr.io), then SSHes into the ParsPack cloud server to
+# pull the new image, run migrations against it (via a throwaway container,
+# BEFORE the running container is replaced), and finally bring up the new
+# container. If migrate fails, the workflow stops there and the old
+# container -- still running, untouched -- keeps serving traffic.
+#
+# No test gate: this project's CI.yml (lint + pytest) is currently disabled
+# (commented out) by deliberate choice. This CD workflow does not invoke it
+# and does not add its own test step.
+
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: false  # never cancel a deploy mid-flight
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}  # -> ghcr.io/retano-org/retano
+
+jobs:
+  build-and-push:
+    name: "Build & push image"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag (short SHA)
+        id: meta
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Build-time placeholders only -- collectstatic in the Dockerfile
+          # imports settings but never connects to the DB. Real secrets are
+          # injected at container *runtime* on the server via --env-file,
+          # never baked into the image.
+          build-args: |
+            DJANGO_SECRET_KEY=build-time-placeholder-not-used-at-runtime
+            DB_NAME=build
+            DB_USER=build
+            DB_PASSWORD=build
+            DB_HOST=build
+            DB_PORT=5432
+
+  deploy:
+    name: "Deploy to ParsPack server"
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: production  # optional: set up a GitHub Environment with required reviewers for extra safety
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PARSPACK_HOST }}
+          username: ${{ secrets.PARSPACK_SSH_USER }}
+          key: ${{ secrets.PARSPACK_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PARSPACK_SSH_PORT }}
+          script_stop: true   # abort the whole script on the first failing command
+          script: |
+            set -e
+
+            IMAGE="ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}"
+            cd /opt/retano
+
+            echo "=== Logging in to ghcr.io ==="
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            echo "=== Pulling new image: $IMAGE ==="
+            docker pull "$IMAGE"
+
+            echo "=== Running migrations against the NEW image (old container still serving traffic) ==="
+            docker run --rm \
+              --env-file .env \
+              --network retano_retano_internal \
+              "$IMAGE" \
+              python manage.py migrate --noinput
+
+            echo "=== Migrations OK. Updating IMAGE_TAG and redeploying ==="
+            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}|" .env
+
+            docker compose pull web worker
+            docker compose up -d --no-deps --wait web worker nginx
+
+            echo "=== Health check ==="
+            sleep 5
+            curl -f http://127.0.0.1/admin/login/ || (echo "Health check failed" && exit 1)
+
+            echo "=== Cleaning up old images (keep last 3) ==="
+            docker image prune -f --filter "until=72h"
+
+            echo "=== Deploy complete: $IMAGE ==="
