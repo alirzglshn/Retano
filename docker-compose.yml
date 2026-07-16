@@ -33,6 +33,15 @@ services:
     # retano_internal. Remove this comment's constraint (add "ports:") only
     # for local debugging with a DB client on the host.
 
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    networks:
+      - retano_internal
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -118,13 +127,14 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      # - "443:443"   # uncomment once certbot/TLS is wired in (see nginx/panel.conf)
+      - "443:443"
     volumes:
       - ./nginx/panel.conf:/etc/nginx/conf.d/default.conf:ro
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
-      # - ./nginx/certbot/conf:/etc/letsencrypt:ro   # uncomment with TLS
-      # - ./nginx/certbot/www:/var/www/certbot:ro    # uncomment with TLS
+      - ./nginx/certbot/conf:/etc/letsencrypt:ro
+      - ./nginx/certbot/www:/var/www/certbot:ro    
+
     depends_on:
       web:
         condition: service_healthy

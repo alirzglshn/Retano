@@ -249,3 +249,5 @@ marimo/_lsp/
 # PyPI
 
 .pypirc
+nginx/certbot/
+.env
