@@ -356,3 +356,15 @@ SUPABASE_UPLOAD_BUCKET = os.environ.get("SUPABASE_UPLOAD_BUCKET", "upload-stagin
 
 # Chunk size for reading Excel rows and COPYing into staging.
 UPLOAD_CHUNK_SIZE = int(os.environ.get("UPLOAD_CHUNK_SIZE", "50000"))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Campaign SMS (send + delivery tracking) — Campaign Detail phase
+# ─────────────────────────────────────────────────────────────────────────────
+from config.settings.campaign_sms_beat import (  # noqa: E402
+    SMSIR_CAMPAIGN_LINE_NUMBER,
+    CAMPAIGN_SMS_BEAT_SCHEDULE,
+)
+
+CELERY_BEAT_SCHEDULE = dict(CAMPAIGN_SMS_BEAT_SCHEDULE)
+
+CELERY_TASK_ROUTES["core.tasks.campaign_sms.*"] = {"queue": "campaign_sms"}

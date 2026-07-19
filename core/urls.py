@@ -14,6 +14,7 @@ from core.views_reports import (
     RetentionReportView,
 )
 
+from core.views_campaign_stats import CampaignDetailStatsView
 from core.views_uploads import (
     CustomerUploadView,
     ProductUploadView,
@@ -46,6 +47,7 @@ router.register(r"campaigns", CampaignViewSet, basename="campaign")
 urlpatterns = [
     # ── Campaign meta (Phase 4) ───────────────────────────────────────────
     path("campaigns/meta/", CampaignMetaView.as_view(), name="campaign-meta"),
+    path("campaigns/<int:pk>/stats/", CampaignDetailStatsView.as_view(), name="campaign-stats"),
 
     # Router-generated URLs
     path("", include(router.urls)),
