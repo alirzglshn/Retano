@@ -32,6 +32,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
+  /api/v1/campaigns/{id}/stats/:
+    get:
+      operationId: campaigns_stats_retrieve
+      description: targeted_users, sms_sent/delivered, and conversion metrics for
+        a single campaign. customer_count/order_count/sales_amount are computed per-user
+        against that user's OWN send window [sent_at date, sent_at date + 3 days]
+        — not a single fixed window for the whole campaign.
+      summary: Campaign detail stats (صفحه جزئیات کمپین)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Campaigns
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetailStatsResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/v1/campaigns/:
     get:
       operationId: campaigns_list
@@ -128,11 +166,18 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
   /api/v1/campaigns/{id}/:
-    get:
-      operationId: campaigns_retrieve
-      description: A campaign ID belonging to another tenant returns 404, never 403
-        — its existence is not revealed to a tenant that does not own it.
-      summary: Retrieve a single campaign
+    patch:
+      operationId: campaigns_partial_update
+      description: |-
+        /api/v1/campaigns/                 — list, create
+        /api/v1/campaigns/{id}/            — retrieve, update, partial_update, destroy
+        /api/v1/campaigns/{id}/toggle/     — PATCH, flips/sets is_active
+
+        Tenant isolation: every queryset is scoped to the requesting user's
+        own tenant. A campaign belonging to another tenant is invisible —
+        not "403 Forbidden", just a 404, since DRF's get_object() raises
+        Http404 when the filtered queryset doesn't contain the pk.
+      summary: Partially update a campaign
       parameters:
       - in: path
         name: id
@@ -141,6 +186,17 @@ paths:
         required: true
       tags:
       - Campaigns
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCampaignRequest'
       security:
       - jwtAuth: []
       - BearerAuth: []
@@ -150,6 +206,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Campaign'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
         '401':
           content:
@@ -223,18 +285,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-    patch:
-      operationId: campaigns_partial_update
-      description: |-
-        /api/v1/campaigns/                 — list, create
-        /api/v1/campaigns/{id}/            — retrieve, update, partial_update, destroy
-        /api/v1/campaigns/{id}/toggle/     — PATCH, flips/sets is_active
-
-        Tenant isolation: every queryset is scoped to the requesting user's
-        own tenant. A campaign belonging to another tenant is invisible —
-        not "403 Forbidden", just a 404, since DRF's get_object() raises
-        Http404 when the filtered queryset doesn't contain the pk.
-      summary: Partially update a campaign
+    get:
+      operationId: campaigns_retrieve
+      description: A campaign ID belonging to another tenant returns 404, never 403
+        — its existence is not revealed to a tenant that does not own it.
+      summary: Retrieve a single campaign
       parameters:
       - in: path
         name: id
@@ -243,17 +298,6 @@ paths:
         required: true
       tags:
       - Campaigns
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedCampaignRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedCampaignRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedCampaignRequest'
       security:
       - jwtAuth: []
       - BearerAuth: []
@@ -263,12 +307,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Campaign'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           description: ''
         '401':
           content:
@@ -350,7 +388,7 @@ paths:
     get:
       operationId: dashboard_retrieve
       description: |-
-        Everything the dashboard page needs in one request: campaign counts, active/inactive customer counts, current-month sales, top 4 products by revenue, yearly retention/churn (see the monthly_trends field's own description for an important naming caveat), RFM segment distribution, SMS balance, and the support unread-message badge count.
+        Everything the dashboard page needs in one request: campaign counts, active/inactive customer counts, current-month sales, top 4 products by revenue, yearly retention/churn (see the monthly_trends field's own description for an important naming caveat), RFM segment distribution, SMS balance, and the notification unread-badge count (support_unread_count — now backed by the notifications app; see that field's own description).
 
         Cached server-side per tenant for 60 seconds — a cache hit returns byte-for-byte the same shape as a fresh computation.
       summary: Single aggregated payload for the دشبورد page
@@ -1389,87 +1427,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/sms/packages/:
-    get:
-      operationId: sms_packages_retrieve
-      description: Drives the purchase-slider UI. ALL price arithmetic (unit price
-        × count, discount tier lookup, final price) happens entirely client-side from
-        this config — the backend performs no price calculation anywhere in this flow.
-        discount_tiers should be evaluated top-to-bottom (highest min_sms first);
-        the first tier whose min_sms the chosen sms_count meets or exceeds is the
-        applicable one.
-      summary: Get SMS pricing configuration
-      tags:
-      - SMS / Billing
-      security:
-      - jwtAuth: []
-      - BearerAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SMSPackagesResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/sms/request-activation/:
-    post:
-      operationId: sms_request_activation_create
-      description: There is no payment gateway on this endpoint (contrast with POST
-        /api/v1/sms/purchase-request/ in tickets/views.py, which additionally accepts
-        and displays pricing figures — the two endpoints currently coexist; product
-        has not yet decided to retire one). This endpoint posts a fixed Persian message
-        stating only the requested sms_count into the tenant's support chat thread;
-        a human support agent then handles the sale manually and an admin sets num_available_sms
-        by hand once payment is confirmed.
-      summary: Request SMS package activation (posts to support chat)
-      tags:
-      - SMS / Billing
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SMSActivationRequestBodyRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/SMSActivationRequestBodyRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/SMSActivationRequestBodyRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - BearerAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SMSActivationRequestResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
   /api/v1/sms/balance/:
     get:
       operationId: sms_balance_retrieve
       description: num_available_sms is set manually in the Django admin by a human
-        operator after payment is confirmed out of band — there is no automated top-up
-        in this system yet.
+        operator after payment is confirmed out of band (bank transfer, reported via
+        Bale) — there is no automated top-up, and no other backend endpoint involved
+        in SMS billing at all.
       summary: Get current SMS credit balance
       tags:
       - SMS / Billing
@@ -1489,16 +1453,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/tickets/chat/:
+  /api/v1/notifications/:
     get:
-      operationId: tickets_chat_retrieve
-      description: 'Returns every message in the tenant''s own thread, oldest first.
-        IMPORTANT SIDE EFFECT: calling this also resets the unread badge — tenant_last_seen_at
-        is updated to now() as part of this GET. GET /api/v1/tickets/unread/ does
-        NOT have this side effect; only this endpoint does.'
-      summary: Get the tenant's full support chat thread
+      operationId: notifications_list
+      description: Newest first. Purely a read — does NOT mark anything as read. Read
+        state only changes when a specific notification's detail is fetched via GET
+        /api/v1/notifications/{id}/. Scoped to the requesting tenant; a tenant only
+        ever sees notifications addressed to them.
+      summary: List this tenant's notifications
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
       tags:
-      - Support Chat
+      - Notifications
       security:
       - jwtAuth: []
       - BearerAuth: []
@@ -1507,7 +1496,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatResponse'
+                $ref: '#/components/schemas/PaginatedNotificationListItemResponseList'
           description: ''
         '401':
           content:
@@ -1515,62 +1504,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-    post:
-      operationId: tickets_chat_create
-      description: |-
-        GET  /api/v1/tickets/chat/
-            Returns all messages in the tenant's thread, oldest first.
-            Also updates tenant_last_seen_at so the unread badge resets.
-
-        POST /api/v1/tickets/chat/
-            Tenant sends a new message.
-            Body: {"body": "..."}
-      summary: Send a chat message as the tenant
-      tags:
-      - Support Chat
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - BearerAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Message'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/tickets/unread/:
+  /api/v1/notifications/unread-count/:
     get:
-      operationId: tickets_unread_retrieve
-      description: For the sidebar notification badge shown on every page. Unlike
-        GET /api/v1/tickets/chat/, polling this endpoint does NOT reset the badge
-        — tenant_last_seen_at is left untouched.
-      summary: Get the unread support-message count
+      operationId: notifications_unread_count_retrieve
+      description: For the red badge on the notification bell icon. Polling this endpoint
+        does NOT mark anything as read — only GET /api/v1/notifications/{id}/ does
+        that, and only for that one notification.
+      summary: Get the unread notification count
       tags:
-      - Support Chat
+      - Notifications
       security:
       - jwtAuth: []
       - BearerAuth: []
@@ -1579,7 +1521,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnreadCountResponse'
+                $ref: '#/components/schemas/NotificationUnreadCountResponse'
           description: ''
         '401':
           content:
@@ -1587,63 +1529,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/sms/purchase-request/:
-    post:
-      operationId: sms_purchase_request_create
-      description: |-
-        Only sms_count is required. unit_price / discount_percent / discount_amount / final_price are optional and used ONLY to render a more detailed message for the support agent — the backend never recalculates, validates, or stores any of these figures for billing purposes; all pricing math already happened client-side using GET /api/v1/sms/packages/'s config.
-
-        NOTE: this endpoint and POST /api/v1/sms/request-activation/ (users/views_sms.py) currently both exist and do the same job with a different payload shape — product has not yet decided to retire one. Document both accurately; do not treat one as deprecated unless told to.
-      summary: Request an SMS purchase (posts pricing detail to support chat)
-      tags:
-      - SMS / Billing
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SmsPurchaseRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/SmsPurchaseRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/SmsPurchaseRequestRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - BearerAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Message'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/tickets/support/{tenant_id}/:
+  /api/v1/notifications/{id}/:
     get:
-      operationId: tickets_support_retrieve
-      description: Requires request.user.is_staff. 404 if the tenant_id does not exist.
-      summary: '[Staff only] Get a specific tenant''s chat thread'
+      operationId: notifications_retrieve
+      description: Returns the full notification (title + content + date) and, as
+        a side effect, marks THIS SPECIFIC notification as read. Other notifications
+        belonging to the same tenant are untouched — read state is per-row, not thread-wide.
+        A notification ID belonging to another tenant returns 404, never 403 — its
+        existence is not revealed to a tenant that does not own it.
+      summary: Get a single notification (marks it read)
       parameters:
       - in: path
-        name: tenant_id
+        name: id
         schema:
           type: integer
         required: true
       tags:
-      - Support Chat (Staff)
+      - Notifications
       security:
       - jwtAuth: []
       - BearerAuth: []
@@ -1652,15 +1554,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatResponse'
+                $ref: '#/components/schemas/NotificationDetailResponse'
           description: ''
         '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
           content:
             application/json:
               schema:
@@ -1670,65 +1566,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SupportThreadNotFoundResponse'
-          description: ''
-    post:
-      operationId: tickets_support_create
-      description: Requires request.user.is_staff. 404 if the tenant_id does not exist.
-      summary: '[Staff only] Reply to a specific tenant''s thread'
-      parameters:
-      - in: path
-        name: tenant_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Support Chat (Staff)
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/SendMessageRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - BearerAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Message'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SupportThreadNotFoundResponse'
           description: ''
 components:
   schemas:
@@ -1928,6 +1766,50 @@ components:
       - name
       - rule_number
       - tenant
+    CampaignDetailStatsResponse:
+      type: object
+      description: |-
+        GET /api/v1/campaigns/{id}/stats/ — mirrors
+        CampaignDetailStatsView.get()'s response dict exactly.
+      properties:
+        campaign_id:
+          type: integer
+        targeted_users:
+          type: integer
+          description: Total trigger_results rows for this campaign.
+        customer_count:
+          type: integer
+          description: Distinct users who ordered within their own send window.
+        order_count:
+          type: integer
+        sales_amount:
+          type: number
+          format: double
+          description: Tomans.
+        sms_sent:
+          type: integer
+        sms_delivered:
+          type: integer
+        sms_delivery_rate_percent:
+          type: number
+          format: double
+          description: sms_delivered / sms_sent * 100, rounded to 1dp. 0.0 if sms_sent
+            is 0.
+        conversion_rate_percent:
+          type: number
+          format: double
+          description: customer_count / sms_delivered * 100, rounded to 1dp. 0.0 if
+            sms_delivered is 0.
+      required:
+      - campaign_id
+      - conversion_rate_percent
+      - customer_count
+      - order_count
+      - sales_amount
+      - sms_delivered
+      - sms_delivery_rate_percent
+      - sms_sent
+      - targeted_users
     CampaignList:
       type: object
       description: |-
@@ -2133,23 +2015,6 @@ components:
           type: boolean
       required:
       - id
-    ChatResponse:
-      type: object
-      description: |-
-        Full {thread_id, messages} shape for GET /api/v1/tickets/chat/ and
-        GET /api/v1/tickets/support/{tenant_id}/, extending the thread_id-only
-        base declared in core/serializers_schema.py with the real
-        tickets.serializers.MessageSerializer.
-      properties:
-        thread_id:
-          type: integer
-        messages:
-          type: array
-          items:
-            $ref: '#/components/schemas/Message'
-      required:
-      - messages
-      - thread_id
     ChoiceOption:
       type: object
       description: One {value, label} pair, as used throughout CampaignMetaView.
@@ -2490,7 +2355,11 @@ components:
           description: CustomUser.num_available_sms for the requesting user.
         support_unread_count:
           type: integer
-          description: Unread support-sent messages in this tenant's ticket thread.
+          description: Unread notifications.models.Notification rows for this tenant
+            (is_read=False). Field name is kept as support_unread_count for frontend
+            compatibility even though it no longer refers to the old tickets support-chat
+            system, which has been removed — it now reflects the one-way admin-authored
+            notification system instead.
       required:
       - campaigns
       - customers
@@ -2595,37 +2464,76 @@ components:
           minLength: 1
       required:
       - refresh
-    Message:
+    NotificationDetailResponse:
       type: object
       description: |-
-        Read shape for a single message.
-        sender_display is the phone number of the sender, or 'support'
-        for staff messages — gives the frontend something human-readable
-        without exposing internal user IDs.
+        GET /api/v1/notifications/{id}/ — mirrors
+        notifications.serializers.NotificationDetailSerializer. Fetching
+        this endpoint marks this specific notification as read as a side
+        effect (is_read becomes true on this call if it wasn't already) —
+        other notifications belonging to the same tenant are unaffected.
       properties:
         id:
           type: integer
-          readOnly: true
-        sender_type:
-          allOf:
-          - $ref: '#/components/schemas/SenderTypeEnum'
-          readOnly: true
-        sender_display:
+        title:
           type: string
-          readOnly: true
-        body:
+        content:
           type: string
-          readOnly: true
         created_at:
           type: string
           format: date-time
-          readOnly: true
+          description: Gregorian, ISO-8601.
+        created_at_jalali:
+          type: string
+          description: Pre-formatted Jalali date string, e.g. '1405/03/10'.
+        is_read:
+          type: boolean
+          description: Always true in the response body for this call, since fetching
+            marks it read.
       required:
-      - body
+      - content
       - created_at
+      - created_at_jalali
       - id
-      - sender_display
-      - sender_type
+      - is_read
+      - title
+    NotificationListItemResponse:
+      type: object
+      description: |-
+        One row of GET /api/v1/notifications/ — mirrors
+        notifications.serializers.NotificationListSerializer exactly. Body
+        text (`content`) is deliberately excluded from the list shape; it
+        only appears on the detail endpoint below.
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          description: Gregorian, ISO-8601.
+        created_at_jalali:
+          type: string
+          description: Pre-formatted Jalali date string, e.g. '1405/03/10'.
+        is_read:
+          type: boolean
+      required:
+      - created_at
+      - created_at_jalali
+      - id
+      - is_read
+      - title
+    NotificationUnreadCountResponse:
+      type: object
+      properties:
+        unread_count:
+          type: integer
+          description: Unread notifications for this tenant. Polling this endpoint
+            does NOT mark anything as read — only fetching a specific notification's
+            detail does that.
+      required:
+      - unread_count
     NullEnum:
       enum:
       - null
@@ -2742,6 +2650,39 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CampaignList'
+    PaginatedNotificationListItemResponseList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - total_pages
+      - current_page
+      - results
+      properties:
+        count:
+          type: integer
+          description: Total number of items across all pages.
+        next:
+          type: string
+          nullable: true
+          format: uri
+          description: URL of the next page, or null.
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          description: URL of the previous page, or null.
+        total_pages:
+          type: integer
+          description: Total number of pages.
+        current_page:
+          type: integer
+          description: Current page number.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationListItemResponse'
     PatchedCampaignRequest:
       type: object
       description: |-
@@ -2981,38 +2922,6 @@ components:
             recent year is always omitted (no year+1 data exists yet).
       required:
       - years
-    SMSActivationRequestBodyRequest:
-      type: object
-      description: |-
-        Schema-only mirror of users.views_sms.SMSActivationRequestSerializer's
-        validation shape (sms_count, bounded by SMS_SLIDER_MIN/MAX in that
-        file). Declared here rather than imported directly because
-        core/schema.py decorates users/views_sms.py's views, and
-        users/views_sms.py imports its @extend_schema decorators FROM
-        core/schema.py — importing the live serializer back out of
-        users/views_sms.py into core/schema.py would create a circular
-        import (core.schema -> users.views_sms -> core.schema). This mirror
-        is validation-free (it only documents shape, never validates a real
-        request) and has no logic to drift out of sync with beyond the two
-        bounds below, which are stable product constants.
-      properties:
-        sms_count:
-          type: integer
-          maximum: 500000
-          minimum: 1000
-          description: Must be between SMS_SLIDER_MIN (1,000) and SMS_SLIDER_MAX (500,000).
-      required:
-      - sms_count
-    SMSActivationRequestResponse:
-      type: object
-      description: 201 response for POST /api/v1/sms/request-activation/.
-      properties:
-        detail:
-          type: string
-          description: Persian confirmation string. Frontend shows this as a toast
-            for 5 seconds.
-      required:
-      - detail
     SMSBalanceResponse:
       type: object
       properties:
@@ -3022,48 +2931,6 @@ components:
             band.
       required:
       - num_available_sms
-    SMSDiscountTier:
-      type: object
-      properties:
-        min_sms:
-          type: integer
-        discount_percent:
-          type: integer
-      required:
-      - discount_percent
-      - min_sms
-    SMSPackagesResponse:
-      type: object
-      description: |-
-        GET /api/v1/sms/packages/. All price arithmetic for the purchase UI
-        happens client-side from this config — the backend never computes,
-        validates, or stores a price anywhere.
-      properties:
-        price_per_sms:
-          type: integer
-          description: Tomans, before any discount.
-        slider:
-          $ref: '#/components/schemas/SMSSliderRange'
-        discount_tiers:
-          type: array
-          items:
-            $ref: '#/components/schemas/SMSDiscountTier'
-          description: Evaluate top-to-bottom (highest min_sms first); the first tier
-            whose min_sms the selected sms_count meets or exceeds wins.
-      required:
-      - discount_tiers
-      - price_per_sms
-      - slider
-    SMSSliderRange:
-      type: object
-      properties:
-        min:
-          type: integer
-        max:
-          type: integer
-      required:
-      - max
-      - min
     SalesRangeBucket:
       type: object
       properties:
@@ -3157,74 +3024,11 @@ components:
       required:
       - segments
       - total_users
-    SendMessageRequest:
-      type: object
-      description: Write shape — body only. Everything else is derived server-side.
-      properties:
-        body:
-          type: string
-          minLength: 1
-          maxLength: 5000
-      required:
-      - body
-    SenderTypeEnum:
-      enum:
-      - tenant
-      - support
-      type: string
-      description: |-
-        * `tenant` - Tenant
-        * `support` - Support
-    SmsPurchaseRequestRequest:
-      type: object
-      description: |-
-        Write shape for POST /api/v1/sms/purchase-request/.
-
-        All pricing (discount_percent, unit_price, total_price, final_price)
-        is calculated on the frontend and accepted here only to be relayed
-        to support in the chat message — the backend never recalculates or
-        trusts these numbers for anything billing-related. They are optional
-        precisely because the backend's only real requirement is the SMS
-        quantity; the rest is convenience context for the support agent.
-      properties:
-        sms_count:
-          type: integer
-          minimum: 1
-        unit_price:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
-          nullable: true
-        discount_percent:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
-          nullable: true
-        discount_amount:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
-          nullable: true
-        final_price:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
-          nullable: true
-      required:
-      - sms_count
     StatusDecEnum:
       enum:
       - error
       type: string
       description: '* `error` - error'
-    SupportThreadNotFoundResponse:
-      type: object
-      description: 404 response for the staff-only SupportChatView when tenant_id
-        does not exist.
-      properties:
-        detail:
-          type: string
-          default: Tenant not found.
     SyncApiKeyGenerated:
       type: object
       description: |-
@@ -3716,16 +3520,6 @@ components:
       - year
       type: string
       description: '* `year` - year'
-    UnreadCountResponse:
-      type: object
-      properties:
-        unread_count:
-          type: integer
-          description: Support-sent messages created after the tenant's last chat
-            visit. Polling this endpoint does NOT reset the badge — only GET /api/v1/tickets/chat/
-            does that.
-      required:
-      - unread_count
     UploadAcceptedResponse:
       type: object
       description: 202 response shared by all three upload endpoints on successful

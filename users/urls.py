@@ -14,7 +14,7 @@ from .views import (
 )
 
 
-from .views_sms import SMSPackagesView, SMSActivationRequestView, SMSBalanceView
+from .views_sms import SMSBalanceView
 
 
 urlpatterns = [
@@ -32,9 +32,8 @@ urlpatterns = [
     path("profile/", ProfileView.as_view(), name="profile"),
     path("account/status/", AccountStatusView.as_view(), name="account-status"),
 
-
-    # ── SMS / Billing  ───────────────────────────────────────────
-    path("sms/packages/",           SMSPackagesView.as_view(),           name="sms-packages"),
-    path("sms/request-activation/", SMSActivationRequestView.as_view(), name="sms-request-activation"),
-    path("sms/balance/",            SMSBalanceView.as_view(),            name="sms-balance"),
+    # ── SMS / Billing ──────────────────────────────────────────────────
+    # Only balance is backend-owned. Pricing and the purchase popup are
+    # 100% frontend with no backend call.
+    path("sms/balance/", SMSBalanceView.as_view(), name="sms-balance"),
 ]

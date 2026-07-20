@@ -13,7 +13,10 @@ Charts/cards on this page and where their data comes from:
     پرفروش‌ترین محصولات/خدمات -> public.order_items + public.products,
                                   ranked by total revenue
     موجودی پیامک              -> CustomUser.num_available_sms
-    Support unread badge      -> tickets.models.Thread.unread_count()
+    Notification unread badge -> notifications.models.Notification
+                                  (unread count for this tenant; replaces
+                                  the old tickets.Thread.unread_count() —
+                                  the tickets app no longer exists)
 
 Cached per-tenant for 60 seconds.
 """
@@ -33,6 +36,7 @@ from core.utils.jalali import (
     jalali_month_to_gregorian_range,
 )
 from core.utils.analytics import get_yearly_retention
+from notifications.models import Notification
 
 import jdatetime
 
@@ -236,14 +240,14 @@ class DashboardView(APIView):
         # ── 7. SMS balance ────────────────────────────────────────────────
         data["sms_balance"] = user.num_available_sms
 
-        # ── 8. Support unread count (dashboard badge) ─────────────────────
-        try:
-            from tickets.models import Thread
-            thread = tenant.thread
-            unread = thread.unread_count()
-        except Exception:
-            unread = 0
-        data["support_unread_count"] = unread
+        # ── 8. Notification unread count (dashboard badge) ────────────────
+        # Replaces the old tickets.Thread.unread_count() — the tickets app
+        # no longer exists. A tenant may have zero notifications at all,
+        # which is not an error case (unlike the old Thread, which was
+        # get_or_create'd lazily and could legitimately be missing).
+        data["support_unread_count"] = Notification.objects.filter(
+            tenant=tenant, is_read=False
+        ).count()
 
         # ── Cache and return ──────────────────────────────────────────────
         cache.set(cache_key, data, DASHBOARD_CACHE_TTL)

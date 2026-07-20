@@ -2,33 +2,6 @@
 """
 Output-only serializers used exclusively for OpenAPI schema generation via
 @extend_schema(responses=...) in core/schema.py.
-
-None of these are used by the views to actually build their responses --
-the views already build plain dicts (or, in a few cases, already have a
-"real" business-logic serializer). These exist purely so drf-spectacular
-has a concrete, named shape to put in the generated schema instead of
-guessing (badly) at a bare dict, or omitting the response body entirely.
-
-Why a dedicated file instead of inline OpenApiResponse/OpenApiExample:
-    1. Reusable — several views share an identical error shape
-       (see UploadErrorResponseSerializer) and reusing one class keeps
-       the generated schema's component list from duplicating the same
-       shape under five different names.
-    2. Drift detection — these are real Serializer subclasses, so a unit
-       test can assert a view's actual response dict against
-       SomeSerializer(data=response.data).is_valid(), and any future
-       change to a view's response shape without a matching change here
-       will fail that test instead of silently going stale in Swagger.
-    3. Isolation — nothing in here touches business logic. Every class
-       below is read-only (all fields default to read_only via the
-       Meta-less plain Serializer base, which never validates writes)
-       and none of them is imported by any view's actual request-handling
-       code path.
-
-Naming convention: <ViewName><Optional qualifier>ResponseSerializer.
-Nested shapes get their own small serializer and are composed in, rather
-than flattened, so the generated schema's component tree mirrors the
-actual dict nesting.
 """
 
 from rest_framework import serializers
@@ -186,7 +159,14 @@ class DashboardResponseSerializer(serializers.Serializer):
         help_text="CustomUser.num_available_sms for the requesting user."
     )
     support_unread_count = serializers.IntegerField(
-        help_text="Unread support-sent messages in this tenant's ticket thread."
+        help_text=(
+            "Unread notifications.models.Notification rows for this "
+            "tenant (is_read=False). Field name is kept as "
+            "support_unread_count for frontend compatibility even though "
+            "it no longer refers to the old tickets support-chat system, "
+            "which has been removed — it now reflects the one-way "
+            "admin-authored notification system instead."
+        )
     )
 
 
@@ -617,65 +597,6 @@ class AccountStatusResponseSerializer(serializers.Serializer):
 # ─────────────────────────────────────────────────────────────────────────
 
 
-class SMSDiscountTierSerializer(serializers.Serializer):
-    min_sms = serializers.IntegerField()
-    discount_percent = serializers.IntegerField()
-
-
-class SMSSliderRangeSerializer(serializers.Serializer):
-    min = serializers.IntegerField()
-    max = serializers.IntegerField()
-
-
-class SMSPackagesResponseSerializer(serializers.Serializer):
-    """
-    GET /api/v1/sms/packages/. All price arithmetic for the purchase UI
-    happens client-side from this config — the backend never computes,
-    validates, or stores a price anywhere.
-    """
-
-    price_per_sms = serializers.IntegerField(help_text="Tomans, before any discount.")
-    slider = SMSSliderRangeSerializer()
-    discount_tiers = SMSDiscountTierSerializer(
-        many=True,
-        help_text=(
-            "Evaluate top-to-bottom (highest min_sms first); the first "
-            "tier whose min_sms the selected sms_count meets or exceeds "
-            "wins."
-        ),
-    )
-
-
-class SMSActivationRequestBodySerializer(serializers.Serializer):
-    """
-    Schema-only mirror of users.views_sms.SMSActivationRequestSerializer's
-    validation shape (sms_count, bounded by SMS_SLIDER_MIN/MAX in that
-    file). Declared here rather than imported directly because
-    core/schema.py decorates users/views_sms.py's views, and
-    users/views_sms.py imports its @extend_schema decorators FROM
-    core/schema.py — importing the live serializer back out of
-    users/views_sms.py into core/schema.py would create a circular
-    import (core.schema -> users.views_sms -> core.schema). This mirror
-    is validation-free (it only documents shape, never validates a real
-    request) and has no logic to drift out of sync with beyond the two
-    bounds below, which are stable product constants.
-    """
-
-    sms_count = serializers.IntegerField(
-        min_value=1000,
-        max_value=500000,
-        help_text="Must be between SMS_SLIDER_MIN (1,000) and SMS_SLIDER_MAX (500,000).",
-    )
-
-
-class SMSActivationRequestResponseSerializer(serializers.Serializer):
-    """201 response for POST /api/v1/sms/request-activation/."""
-
-    detail = serializers.CharField(
-        help_text="Persian confirmation string. Frontend shows this as a toast for 5 seconds."
-    )
-
-
 class SMSBalanceResponseSerializer(serializers.Serializer):
     num_available_sms = serializers.IntegerField(
         help_text="Set manually by an admin after payment is confirmed out of band."
@@ -683,51 +604,83 @@ class SMSBalanceResponseSerializer(serializers.Serializer):
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Tickets
+# Notifications
 # ─────────────────────────────────────────────────────────────────────────
 
 
-class ChatThreadResponseSerializer(serializers.Serializer):
+class NotificationListItemResponseSerializer(serializers.Serializer):
     """
-    Base envelope shape shared by GET /api/v1/tickets/chat/ and
-    GET /api/v1/tickets/support/{tenant_id}/ — {thread_id, messages: [...]}.
-
-    Deliberately declared WITHOUT the `messages` field here. `core` (this
-    file's app) must not import from `tickets`: core.models is already
-    imported by tickets.models (Thread.tenant is a FK to core.models.
-    Tenant), which makes core the lower-level app in this dependency
-    direction, and this schema-only module should not invert that by
-    reaching into `tickets` itself, even just for documentation purposes.
-
-    The concrete, fully-composed version — with
-    `messages = tickets.serializers.MessageSerializer(many=True)` added
-    as a genuine field — is built via serializers.Serializer subclassing
-    in core/schema.py instead, which already legitimately imports across
-    both apps for view-wiring purposes and is the correct place for this
-    cross-app composition to live. See ChatResponseSerializer in
-    core/schema.py.
-
-    NOTE: calling GET /api/v1/tickets/chat/ also has the side effect of
-    resetting the tenant's unread badge (tenant_last_seen_at is updated
-    to now()) — a behavioral note for the frontend team, not something
-    representable in the schema itself. The staff-only support variant
-    (GET /api/v1/tickets/support/{tenant_id}/) has no such side effect.
+    One row of GET /api/v1/notifications/ — mirrors
+    notifications.serializers.NotificationListSerializer exactly. Body
+    text (`content`) is deliberately excluded from the list shape; it
+    only appears on the detail endpoint below.
     """
 
-    thread_id = serializers.IntegerField()
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    created_at = serializers.DateTimeField(help_text="Gregorian, ISO-8601.")
+    created_at_jalali = serializers.CharField(
+        help_text="Pre-formatted Jalali date string, e.g. '1405/03/10'."
+    )
+    is_read = serializers.BooleanField()
 
 
-class SupportThreadNotFoundResponseSerializer(serializers.Serializer):
-    """404 response for the staff-only SupportChatView when tenant_id does not exist."""
+class NotificationDetailResponseSerializer(serializers.Serializer):
+    """
+    GET /api/v1/notifications/{id}/ — mirrors
+    notifications.serializers.NotificationDetailSerializer. Fetching
+    this endpoint marks this specific notification as read as a side
+    effect (is_read becomes true on this call if it wasn't already) —
+    other notifications belonging to the same tenant are unaffected.
+    """
 
-    detail = serializers.CharField(default="Tenant not found.")
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    content = serializers.CharField()
+    created_at = serializers.DateTimeField(help_text="Gregorian, ISO-8601.")
+    created_at_jalali = serializers.CharField(
+        help_text="Pre-formatted Jalali date string, e.g. '1405/03/10'."
+    )
+    is_read = serializers.BooleanField(
+        help_text="Always true in the response body for this call, since fetching marks it read."
+    )
 
 
-class UnreadCountResponseSerializer(serializers.Serializer):
+class NotificationUnreadCountResponseSerializer(serializers.Serializer):
     unread_count = serializers.IntegerField(
         help_text=(
-            "Support-sent messages created after the tenant's last chat "
-            "visit. Polling this endpoint does NOT reset the badge — only "
-            "GET /api/v1/tickets/chat/ does that."
+            "Unread notifications for this tenant. Polling this endpoint "
+            "does NOT mark anything as read — only fetching a specific "
+            "notification's detail does that."
         )
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Campaigns — detail stats
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class CampaignDetailStatsResponseSerializer(serializers.Serializer):
+    """
+    GET /api/v1/campaigns/{id}/stats/ — mirrors
+    CampaignDetailStatsView.get()'s response dict exactly.
+    """
+
+    campaign_id = serializers.IntegerField()
+    targeted_users = serializers.IntegerField(
+        help_text="Total trigger_results rows for this campaign."
+    )
+    customer_count = serializers.IntegerField(
+        help_text="Distinct users who ordered within their own send window."
+    )
+    order_count = serializers.IntegerField()
+    sales_amount = serializers.FloatField(help_text="Tomans.")
+    sms_sent = serializers.IntegerField()
+    sms_delivered = serializers.IntegerField()
+    sms_delivery_rate_percent = serializers.FloatField(
+        help_text="sms_delivered / sms_sent * 100, rounded to 1dp. 0.0 if sms_sent is 0."
+    )
+    conversion_rate_percent = serializers.FloatField(
+        help_text="customer_count / sms_delivered * 100, rounded to 1dp. 0.0 if sms_delivered is 0."
     )
