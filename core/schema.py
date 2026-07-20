@@ -2,50 +2,6 @@
 """
 drf-spectacular @extend_schema / @extend_schema_view wiring for every view
 in the project.
-
-This module is the ONLY place Phase 10 adds behavior. Every view file
-listed below gets exactly two kinds of changes:
-    1. An import of the relevant decorator function(s)/mixin from here.
-    2. The decorator applied directly above the view class (or, for
-       function-style application on individual methods/actions, above
-       the method).
-
-No business logic in any view changes. If you diff any view file
-before/after this phase, the only lines that should appear are import
-additions and decorator lines.
-
-Files this module's contents get applied to (see the bottom "APPLICATION
-MAP" comment block for the exact wiring):
-    core/views.py
-    core/views_uploads.py
-    core/views_sync.py
-    core/views_sync_conf.py
-    core/views_reports.py
-    core/views_dashboard.py
-    users/views.py
-    users/views_sms.py
-    tickets/views.py
-
-Organization: one section per source view file, in the same order as the
-"APPLICATION MAP" at the bottom, so a reviewer can jump from "which view
-am I looking at" to "which decorator applies to it" without hunting.
-
-A note on the error envelope
------------------------------
-core.serializers_schema.ErrorResponseSerializer documents the standard
-envelope produced by core.exceptions.custom_exception_handler. It is
-attached to 400/401/403/404/409/429/500 wherever a view's errors are
-genuinely raised as DRF exceptions (ValidationError, NotAuthenticated,
-PermissionDenied, Http404, APIException subclasses). Several views build
-error Response() objects BY HAND instead of raising, and therefore never
-pass through that handler — for those, the response documented is the
-view's actual literal shape (see core/serializers_schema.py docstrings
-for each one), not ErrorResponseSerializer. Silently documenting the
-"aspirational" shared envelope on an endpoint that doesn't actually
-produce it would be a factually wrong contract for the frontend team to
-build against, which is worse than a known inconsistency being visible.
-This was left as-is per explicit product decision (out of scope for this
-phase) but documented accurately either way.
 """
 
 from rest_framework import serializers
@@ -64,21 +20,20 @@ from core.serializers_schema import (
     AccountStatusResponseSerializer,
     ActiveUsersResponseSerializer,
     CampaignMetaResponseSerializer,
-    ChatThreadResponseSerializer,
     DashboardResponseSerializer,
     ErrorResponseSerializer,
+    NotificationDetailResponseSerializer,
+    NotificationListItemResponseSerializer,
+    NotificationUnreadCountResponseSerializer,
     OTPRequestResponseSerializer,
     OTPVerifyResponseSerializer,
     RegisterResponseSerializer,
     RetentionResponseSerializer,
-    SMSActivationRequestBodySerializer,
-    SMSActivationRequestResponseSerializer,
     SMSBalanceResponseSerializer,
-    SMSPackagesResponseSerializer,
     SalesRangeResponseSerializer,
     SampleFilesResponseSerializer,
+    CampaignDetailStatsResponseSerializer,
     SegmentsResponseSerializer,
-    SupportThreadNotFoundResponseSerializer,
     SyncApiKeyMappingIncompleteResponseSerializer,
     SyncFieldMappingListResponseSerializer,
     SyncFieldMappingSavedResponseSerializer,
@@ -88,7 +43,6 @@ from core.serializers_schema import (
     TrendsBadGranularityResponseSerializer,
     TrendsMonthlyResponseSerializer,
     TrendsYearlyResponseSerializer,
-    UnreadCountResponseSerializer,
     UploadAcceptedResponseSerializer,
     UploadErrorResponseSerializer,
     UploadJobNotFoundResponseSerializer,
@@ -107,36 +61,12 @@ from core.serializers_sync import (
     SyncConfigStatusSerializer,
     SyncReportSerializer,
 )
-from tickets.serializers import MessageSerializer, SendMessageSerializer, SmsPurchaseRequestSerializer
 
 from users.serializers import (
     LogoutSerializer,
     OTPRequestSerializer,
     OTPVerifySerializer,
 )
-
-
-# ─────────────────────────────────────────────────────────────────────────
-# Cross-app composed serializers (schema-only)
-# ─────────────────────────────────────────────────────────────────────────
-# These two compositions legitimately need both core and tickets, which is
-# exactly why they live here rather than in core/serializers_schema.py —
-# this file already imports across app boundaries for view-wiring, so it
-# is the correct place for a schema-only class that also needs to import
-# across app boundaries. Neither class is used by any view to build an
-# actual response; both exist solely to give drf-spectacular a concrete,
-# named shape.
-
-
-class ChatResponseSerializer(ChatThreadResponseSerializer):
-    """
-    Full {thread_id, messages} shape for GET /api/v1/tickets/chat/ and
-    GET /api/v1/tickets/support/{tenant_id}/, extending the thread_id-only
-    base declared in core/serializers_schema.py with the real
-    tickets.serializers.MessageSerializer.
-    """
-
-    messages = MessageSerializer(many=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -311,6 +241,26 @@ CAMPAIGN_META_SCHEMA = extend_schema(
     },
 )
 """Applied directly above CampaignMetaView in core/views.py."""
+
+
+
+CAMPAIGN_DETAIL_STATS_SCHEMA = extend_schema(
+    tags=["Campaigns"],
+    summary="Campaign detail stats (صفحه جزئیات کمپین)",
+    description=(
+        "targeted_users, sms_sent/delivered, and conversion metrics for a "
+        "single campaign. customer_count/order_count/sales_amount are "
+        "computed per-user against that user's OWN send window "
+        "[sent_at date, sent_at date + 3 days] — not a single fixed "
+        "window for the whole campaign."
+    ),
+    responses={
+        200: CampaignDetailStatsResponseSerializer,
+        401: ErrorResponseSerializer,
+        404: ErrorResponseSerializer,
+    },
+)
+"""Applied directly above CampaignDetailStatsView in core/views_campaign_stats.py."""
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -982,8 +932,10 @@ DASHBOARD_SCHEMA = extend_schema(
         "counts, active/inactive customer counts, current-month sales, "
         "top 4 products by revenue, yearly retention/churn (see the "
         "monthly_trends field's own description for an important naming "
-        "caveat), RFM segment distribution, SMS balance, and the support "
-        "unread-message badge count.\n\n"
+        "caveat), RFM segment distribution, SMS balance, and the "
+        "notification unread-badge count (support_unread_count — now "
+        "backed by the notifications app; see that field's own "
+        "description).\n\n"
         "Cached server-side per tenant for 60 seconds — a cache hit "
         "returns byte-for-byte the same shape as a fresh computation."
     ),
@@ -1146,58 +1098,21 @@ ACCOUNT_STATUS_SCHEMA = extend_schema(
 # ═══════════════════════════════════════════════════════════════════════
 # users/views_sms.py
 # ═══════════════════════════════════════════════════════════════════════
-
-SMS_PACKAGES_SCHEMA = extend_schema(
-    tags=["SMS / Billing"],
-    summary="Get SMS pricing configuration",
-    description=(
-        "Drives the purchase-slider UI. ALL price arithmetic (unit "
-        "price × count, discount tier lookup, final price) happens "
-        "entirely client-side from this config — the backend performs "
-        "no price calculation anywhere in this flow. discount_tiers "
-        "should be evaluated top-to-bottom (highest min_sms first); the "
-        "first tier whose min_sms the chosen sms_count meets or exceeds "
-        "is the applicable one."
-    ),
-    responses={
-        200: SMSPackagesResponseSerializer,
-        401: ErrorResponseSerializer,
-    },
-)
-"""Applied directly above SMSPackagesView in users/views_sms.py."""
-
-
-SMS_ACTIVATION_REQUEST_SCHEMA = extend_schema(
-    tags=["SMS / Billing"],
-    summary="Request SMS package activation (posts to support chat)",
-    description=(
-        "There is no payment gateway on this endpoint (contrast with "
-        "POST /api/v1/sms/purchase-request/ in tickets/views.py, which "
-        "additionally accepts and displays pricing figures — the two "
-        "endpoints currently coexist; product has not yet decided to "
-        "retire one). This endpoint posts a fixed Persian message "
-        "stating only the requested sms_count into the tenant's support "
-        "chat thread; a human support agent then handles the sale "
-        "manually and an admin sets num_available_sms by hand once "
-        "payment is confirmed."
-    ),
-    request=SMSActivationRequestBodySerializer,
-    responses={
-        201: SMSActivationRequestResponseSerializer,
-        400: ErrorResponseSerializer,
-        401: ErrorResponseSerializer,
-    },
-)
-"""Applied directly above SMSActivationRequestView in users/views_sms.py."""
-
+#
+# NOTE: SMSPackagesView and SMSActivationRequestView have been REMOVED
+# from the project (and so are their schema entries, formerly
+# SMS_PACKAGES_SCHEMA / SMS_ACTIVATION_REQUEST_SCHEMA). SMS pricing and
+# the purchase popup are 100% frontend now, with zero backend calls —
+# SMSBalanceView is the only endpoint left in this file.
 
 SMS_BALANCE_SCHEMA = extend_schema(
     tags=["SMS / Billing"],
     summary="Get current SMS credit balance",
     description=(
         "num_available_sms is set manually in the Django admin by a "
-        "human operator after payment is confirmed out of band — there "
-        "is no automated top-up in this system yet."
+        "human operator after payment is confirmed out of band (bank "
+        "transfer, reported via Bale) — there is no automated top-up, "
+        "and no other backend endpoint involved in SMS billing at all."
     ),
     responses={
         200: SMSBalanceResponseSerializer,
@@ -1208,117 +1123,69 @@ SMS_BALANCE_SCHEMA = extend_schema(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# tickets/views.py
+# notifications/views.py
 # ═══════════════════════════════════════════════════════════════════════
+#
+# Replaces the removed tickets/views.py entirely. One-way, admin-authored
+# notifications: tenants can only ever list, retrieve (which marks that
+# one row read), and check their unread count. There is no tenant-facing
+# create/update/delete anywhere in this app — notifications are authored
+# exclusively through the Django admin panel, which has no API surface of
+# its own to document here.
 
-CHAT_VIEW_SCHEMA = extend_schema_view(
-    get=extend_schema(
-        tags=["Support Chat"],
-        summary="Get the tenant's full support chat thread",
-        description=(
-            "Returns every message in the tenant's own thread, oldest "
-            "first. IMPORTANT SIDE EFFECT: calling this also resets the "
-            "unread badge — tenant_last_seen_at is updated to now() as "
-            "part of this GET. GET /api/v1/tickets/unread/ does NOT have "
-            "this side effect; only this endpoint does."
-        ),
-        responses={
-            200: ChatResponseSerializer,
-            401: ErrorResponseSerializer,
-        },
-    ),
-    post=extend_schema(
-        tags=["Support Chat"],
-        summary="Send a chat message as the tenant",
-        request=SendMessageSerializer,
-        responses={
-            201: MessageSerializer,
-            400: ErrorResponseSerializer,
-            401: ErrorResponseSerializer,
-        },
-    ),
-)
-"""
-Applied to ChatView as a class decorator in tickets/views.py.
-
-The 200 response uses ChatResponseSerializer (defined at the top of this
-file), which composes core/serializers_schema.py's thread_id-only
-ChatThreadResponseSerializer base together with the real
-tickets.serializers.MessageSerializer for the `messages` field — see the
-"Cross-app composed serializers" section near the top of this file for
-why that composition lives here instead of in serializers_schema.py.
-"""
-
-
-SUPPORT_CHAT_VIEW_SCHEMA = extend_schema_view(
-    get=extend_schema(
-        tags=["Support Chat (Staff)"],
-        summary="[Staff only] Get a specific tenant's chat thread",
-        description="Requires request.user.is_staff. 404 if the tenant_id does not exist.",
-        responses={
-            200: ChatResponseSerializer,
-            401: ErrorResponseSerializer,
-            403: ErrorResponseSerializer,
-            404: SupportThreadNotFoundResponseSerializer,
-        },
-    ),
-    post=extend_schema(
-        tags=["Support Chat (Staff)"],
-        summary="[Staff only] Reply to a specific tenant's thread",
-        description="Requires request.user.is_staff. 404 if the tenant_id does not exist.",
-        request=SendMessageSerializer,
-        responses={
-            201: MessageSerializer,
-            400: ErrorResponseSerializer,
-            401: ErrorResponseSerializer,
-            403: ErrorResponseSerializer,
-            404: SupportThreadNotFoundResponseSerializer,
-        },
-    ),
-)
-"""Applied to SupportChatView as a class decorator in tickets/views.py."""
-
-
-UNREAD_COUNT_SCHEMA = extend_schema(
-    tags=["Support Chat"],
-    summary="Get the unread support-message count",
+NOTIFICATION_LIST_SCHEMA = extend_schema(
+    tags=["Notifications"],
+    summary="List this tenant's notifications",
     description=(
-        "For the sidebar notification badge shown on every page. Unlike "
-        "GET /api/v1/tickets/chat/, polling this endpoint does NOT reset "
-        "the badge — tenant_last_seen_at is left untouched."
+        "Newest first. Purely a read — does NOT mark anything as read. "
+        "Read state only changes when a specific notification's detail "
+        "is fetched via GET /api/v1/notifications/{id}/. Scoped to the "
+        "requesting tenant; a tenant only ever sees notifications "
+        "addressed to them."
     ),
     responses={
-        200: UnreadCountResponseSerializer,
+        200: NotificationListItemResponseSerializer,
         401: ErrorResponseSerializer,
     },
 )
-"""Applied directly above UnreadCountView in tickets/views.py."""
+"""Applied directly above NotificationListView in notifications/views.py."""
 
 
-SMS_PURCHASE_REQUEST_SCHEMA = extend_schema(
-    tags=["SMS / Billing"],
-    summary="Request an SMS purchase (posts pricing detail to support chat)",
+NOTIFICATION_DETAIL_SCHEMA = extend_schema(
+    tags=["Notifications"],
+    summary="Get a single notification (marks it read)",
     description=(
-        "Only sms_count is required. unit_price / discount_percent / "
-        "discount_amount / final_price are optional and used ONLY to "
-        "render a more detailed message for the support agent — the "
-        "backend never recalculates, validates, or stores any of these "
-        "figures for billing purposes; all pricing math already happened "
-        "client-side using GET /api/v1/sms/packages/'s config.\n\n"
-        "NOTE: this endpoint and POST /api/v1/sms/request-activation/ "
-        "(users/views_sms.py) currently both exist and do the same job "
-        "with a different payload shape — product has not yet decided to "
-        "retire one. Document both accurately; do not treat one as "
-        "deprecated unless told to."
+        "Returns the full notification (title + content + date) and, as "
+        "a side effect, marks THIS SPECIFIC notification as read. Other "
+        "notifications belonging to the same tenant are untouched — read "
+        "state is per-row, not thread-wide. A notification ID belonging "
+        "to another tenant returns 404, never 403 — its existence is not "
+        "revealed to a tenant that does not own it."
     ),
-    request=SmsPurchaseRequestSerializer,
     responses={
-        201: MessageSerializer,
-        400: ErrorResponseSerializer,
+        200: NotificationDetailResponseSerializer,
+        401: ErrorResponseSerializer,
+        404: ErrorResponseSerializer,
+    },
+)
+"""Applied directly above NotificationDetailView in notifications/views.py."""
+
+
+NOTIFICATION_UNREAD_COUNT_SCHEMA = extend_schema(
+    tags=["Notifications"],
+    summary="Get the unread notification count",
+    description=(
+        "For the red badge on the notification bell icon. Polling this "
+        "endpoint does NOT mark anything as read — only "
+        "GET /api/v1/notifications/{id}/ does that, and only for that "
+        "one notification."
+    ),
+    responses={
+        200: NotificationUnreadCountResponseSerializer,
         401: ErrorResponseSerializer,
     },
 )
-"""Applied directly above SmsPurchaseRequestView in tickets/views.py."""
+"""Applied directly above NotificationUnreadCountView in notifications/views.py."""
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1337,6 +1204,10 @@ core/views.py
         def toggle(self, request, pk=None): ...
     @CAMPAIGN_META_SCHEMA
     class CampaignMetaView(APIView): ...
+    core/views_campaign_stats.py
+    from core.schema import CAMPAIGN_DETAIL_STATS_SCHEMA
+    @CAMPAIGN_DETAIL_STATS_SCHEMA
+    class CampaignDetailStatsView(APIView): ...
 
 core/views_uploads.py
     from core.schema import (
@@ -1424,25 +1295,19 @@ users/views.py
     class AccountStatusView(APIView): ...
 
 users/views_sms.py
-    from core.schema import SMS_PACKAGES_SCHEMA, SMS_ACTIVATION_REQUEST_SCHEMA, SMS_BALANCE_SCHEMA
-    @SMS_PACKAGES_SCHEMA
-    class SMSPackagesView(APIView): ...
-    @SMS_ACTIVATION_REQUEST_SCHEMA
-    class SMSActivationRequestView(APIView): ...
+    from core.schema import SMS_BALANCE_SCHEMA
     @SMS_BALANCE_SCHEMA
     class SMSBalanceView(APIView): ...
 
-tickets/views.py
+notifications/views.py
     from core.schema import (
-        CHAT_VIEW_SCHEMA, SUPPORT_CHAT_VIEW_SCHEMA, UNREAD_COUNT_SCHEMA,
-        SMS_PURCHASE_REQUEST_SCHEMA,
+        NOTIFICATION_LIST_SCHEMA, NOTIFICATION_DETAIL_SCHEMA,
+        NOTIFICATION_UNREAD_COUNT_SCHEMA,
     )
-    @CHAT_VIEW_SCHEMA
-    class ChatView(APIView): ...
-    @SUPPORT_CHAT_VIEW_SCHEMA
-    class SupportChatView(APIView): ...
-    @UNREAD_COUNT_SCHEMA
-    class UnreadCountView(APIView): ...
-    @SMS_PURCHASE_REQUEST_SCHEMA
-    class SmsPurchaseRequestView(APIView): ...
+    @NOTIFICATION_LIST_SCHEMA
+    class NotificationListView(generics.ListAPIView): ...
+    @NOTIFICATION_DETAIL_SCHEMA
+    class NotificationDetailView(generics.RetrieveAPIView): ...
+    @NOTIFICATION_UNREAD_COUNT_SCHEMA
+    class NotificationUnreadCountView(APIView): ...
 """

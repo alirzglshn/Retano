@@ -55,7 +55,7 @@ urlpatterns = [
     # REST API v1
     path("api/v1/", include("core.urls")),
     path("api/v1/", include("users.urls")),
-    path("api/v1/", include("tickets.urls")),
+    path("api/v1/", include("notifications.urls")),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────

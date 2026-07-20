@@ -1,7 +1,6 @@
 # core/views_campaign_stats.py
 """
 Campaign detail stats endpoint (صفحه جزئیات کمپین / گزارش کمپین).
-
     GET /api/v1/campaigns/{id}/stats/
 """
 
@@ -14,6 +13,9 @@ from rest_framework.views import APIView
 
 from core.models import Campaign
 from core.models_supabase import TriggerResult
+from core.schema import CAMPAIGN_DETAIL_STATS_SCHEMA   
+from core.models import Campaign
+from core.models_supabase import TriggerResult
 
 # How many whole calendar days approximate the "exactly 72 complete hours"
 # window, per the product decision to approximate using orders.order_date
@@ -23,6 +25,7 @@ from core.models_supabase import TriggerResult
 SALES_WINDOW_DAYS = 3
 
 
+@CAMPAIGN_DETAIL_STATS_SCHEMA
 class CampaignDetailStatsView(APIView):
     """GET /api/v1/campaigns/{id}/stats/"""
 
