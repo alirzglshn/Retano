@@ -79,6 +79,7 @@ class UploadJob(models.Model):
     # Same shape as the old customers_mapping / products_mapping /
     # coupons_mapping dicts — field name -> zero-based column index.
     mapping = models.JSONField()
+    column_headers = models.JSONField(default=list, blank=True)
 
     total_rows = models.PositiveIntegerField(null=True, blank=True)
     processed_rows = models.PositiveIntegerField(default=0)
@@ -149,6 +150,13 @@ class Coupon(models.Model):
 
 
 class CustomerFileUpload(models.Model):
+    upload_job = models.OneToOneField(
+        UploadJob,
+        on_delete=models.SET_NULL,
+        related_name="customer_upload_record",
+        null=True,
+        blank=True,
+    )
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     customers_file = models.FileField(upload_to="campaign_customers/")
     customers_mapping = models.JSONField(
@@ -165,6 +173,13 @@ class CustomerFileUpload(models.Model):
 
 
 class ProductFileUpload(models.Model):
+    upload_job = models.OneToOneField(
+        UploadJob,
+        on_delete=models.SET_NULL,
+        related_name="product_upload_record",
+        null=True,
+        blank=True,
+    )
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     products_file = models.FileField(upload_to="campaign_products/")
     products_mapping = models.JSONField(
@@ -181,6 +196,13 @@ class ProductFileUpload(models.Model):
 
 
 class CouponFileUpload(models.Model):
+    upload_job = models.OneToOneField(
+        UploadJob,
+        on_delete=models.SET_NULL,
+        related_name="coupon_upload_record",
+        null=True,
+        blank=True,
+    )
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     coupons_file = models.FileField(upload_to="campaign_coupons/")
     coupons_mapping = models.JSONField(

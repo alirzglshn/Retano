@@ -31,17 +31,24 @@ import io
 import openpyxl
 import pandas as pd
 from celery import shared_task
+
 from django.core.files.base import ContentFile
 from django.db import connection, transaction
 
-from core.models import Coupon, CustomerFileUpload, ProductFileUpload, CouponFileUpload, ErrorLog
-from core.models import UploadJob
-from core.services.storage import download_to_tempfile, delete_from_storage
+from core.models import (
+    Coupon,
+    CouponFileUpload,
+    CustomerFileUpload,
+    ErrorLog,
+    ProductFileUpload,
+    UploadJob,
+)
+from core.services.storage import delete_from_storage, download_to_tempfile
 from core.utils.date_parser import FlexibleDateParser
 from core.utils.excel_mapper import (
+    CouponExcelMapper,
     CustomerExcelMapper,
     ProductExcelMapper,
-    CouponExcelMapper,
 )
 
 CHUNK_SIZE = 50_000  # overridden by settings.UPLOAD_CHUNK_SIZE where imported
@@ -53,7 +60,7 @@ def _chunk_size():
     return getattr(settings, "UPLOAD_CHUNK_SIZE", CHUNK_SIZE)
 
 
-def _count_data_rows(path: str) -> int:
+def _inspect_workbook(path: str) -> tuple[int, list[str]]:
     """
     Row count without loading the whole sheet into memory. openpyxl in
     read-only mode streams rows rather than materializing the full workbook,
@@ -62,9 +69,10 @@ def _count_data_rows(path: str) -> int:
     """
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     ws = wb.active
+    header = next(ws.iter_rows(values_only=True), ())
     total = ws.max_row - 1  # minus header row
     wb.close()
-    return max(total, 0)
+    return max(total, 0), _column_headers(header)
 
 
 def _iter_chunks(path: str, chunk_size: int):
@@ -88,6 +96,10 @@ def _iter_chunks(path: str, chunk_size: int):
     if buffer:
         yield header, buffer
     wb.close()
+
+
+def _column_headers(header) -> list[str]:
+    return ["" if value is None else str(value) for value in header]
 
 
 def _copy_buffer_into(table_and_columns_sql: str, buf: io.StringIO):
@@ -181,13 +193,16 @@ def process_customers_upload(self, job_id: str):
             upload_record = CustomerFileUpload.objects.create(
                 tenant=tenant,
                 customers_mapping=mapping,
+                upload_job=job,
             )
             _attach_uploaded_file(
                 upload_record, "customers_file", local_path, job.original_filename
             )
 
-            job.total_rows = _count_data_rows(local_path)
-            job.save(update_fields=["total_rows", "updated_at"])
+            job.total_rows, job.column_headers = _inspect_workbook(local_path)
+            job.save(
+                update_fields=["total_rows", "column_headers", "updated_at"]
+            )
 
             for header, rows in _iter_chunks(local_path, _chunk_size()):
                 if actual_column_mapping is None:
@@ -359,13 +374,16 @@ def process_products_upload(self, job_id: str):
             upload_record = ProductFileUpload.objects.create(
                 tenant=tenant,
                 products_mapping=mapping,
+                upload_job=job,
             )
             _attach_uploaded_file(
                 upload_record, "products_file", local_path, job.original_filename
             )
 
-            job.total_rows = _count_data_rows(local_path)
-            job.save(update_fields=["total_rows", "updated_at"])
+            job.total_rows, job.column_headers = _inspect_workbook(local_path)
+            job.save(
+                update_fields=["total_rows", "column_headers", "updated_at"]
+            )
 
             for header, rows in _iter_chunks(local_path, _chunk_size()):
                 if actual_column_mapping is None:
@@ -520,14 +538,18 @@ def process_coupons_upload(self, job_id: str):
     try:
         with download_to_tempfile(job.storage_key) as local_path:
             coupon_upload_record = CouponFileUpload.objects.create(
-                tenant=tenant, coupons_mapping=mapping
+                tenant=tenant,
+                coupons_mapping=mapping,
+                upload_job=job,
             )
             _attach_uploaded_file(
                 coupon_upload_record, "coupons_file", local_path, job.original_filename
             )
 
-            job.total_rows = _count_data_rows(local_path)
-            job.save(update_fields=["total_rows", "updated_at"])
+            job.total_rows, job.column_headers = _inspect_workbook(local_path)
+            job.save(
+                update_fields=["total_rows", "column_headers", "updated_at"]
+            )
 
             for header, rows in _iter_chunks(local_path, _chunk_size()):
                 chunk_df = pd.DataFrame(rows, columns=header)

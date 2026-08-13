@@ -38,8 +38,11 @@ class NotificationListView(generics.ListAPIView):
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = NotificationListSerializer
+    filter_backends = []
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Notification.objects.none()
         return Notification.objects.filter(tenant=self.request.user.tenant)
 
 

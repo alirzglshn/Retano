@@ -20,7 +20,9 @@ from core.views_uploads import (
     ProductUploadView,
     CouponUploadView,
     SampleFilesView,
-    UploadJobStatusView,   
+    UploadHistoryView,
+    UploadJobDownloadView,
+    UploadJobStatusView,
 )
 from core.views_dashboard import DashboardView
 
@@ -79,6 +81,7 @@ urlpatterns = [
     path("uploads/products/", ProductUploadView.as_view(), name="upload-products"),
     path("uploads/coupons/", CouponUploadView.as_view(), name="upload-coupons"),
     path("uploads/sample-files/", SampleFilesView.as_view(), name="upload-sample-files"),
+    path("uploads/history/", UploadHistoryView.as_view(), name="upload-history"),
 
     path(
         "sync-conf/status/",
@@ -112,5 +115,10 @@ urlpatterns = [
         "uploads/jobs/<uuid:job_id>/",
         UploadJobStatusView.as_view(),
         name="upload-job-status",
+    ),
+    path(
+        "uploads/jobs/<uuid:job_id>/download/",
+        UploadJobDownloadView.as_view(),
+        name="upload-job-download",
     ),
 ]

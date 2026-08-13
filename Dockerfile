@@ -19,19 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 
-# This VM's CPU lacks SSE4.2/POPCNT (confirmed via /proc/cpuinfo), below
-# the "x86-64-v2" baseline recent numpy/pandas wheels from PyPI require.
-# Fix: build numpy from source with baseline lowered to SSE2, output AS A
-# WHEEL into /build/wheels so the runtime stage actually installs this
-# compatible build instead of silently re-downloading the incompatible
-# prebuilt one when it processes requirements.txt.
-RUN pip install --upgrade pip build && \
-    pip wheel --no-cache-dir --no-binary numpy \
-        --config-settings=setup-args="-Dcpu-baseline=min" \
-        --config-settings=setup-args="-Dcpu-dispatch=none" \
-        --wheel-dir /build/wheels \
-        numpy==2.4.4
-
 RUN pip wheel --no-cache-dir --wheel-dir /build/wheels --find-links /build/wheels -r requirements.txt
 
 
@@ -46,8 +33,7 @@ FROM python:3.12-slim AS runtime
 # .pyc files into the image layer.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    NPY_DISABLE_CPU_FEATURES="AVX512F AVX512CD AVX512_SKX AVX512_CLX AVX512_CNL AVX512_ICL AVX2 FMA3 SSE41 SSE42 POPCNT"
+    PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \

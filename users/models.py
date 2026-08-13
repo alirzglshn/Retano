@@ -25,10 +25,13 @@ standard ``post_save`` on ``CustomUser`` and the existing handler in
 ``core`` will create the Tenant exactly as before.
 """
 
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import RegexValidator
 from django.db import models
-
+from django.utils import timezone
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Validators
@@ -61,6 +64,43 @@ BUSINESS_DOMAIN_CHOICES = [
     ("digital_electronics", "لوازم دیجیتال و الکترونیک"),
     ("other", "سایر"),
 ]
+
+
+class OTPQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(created_at__gte=OTP.expiration_cutoff())
+
+    def expired(self):
+        return self.filter(created_at__lt=OTP.expiration_cutoff())
+
+    def purge_expired(self):
+        return self.expired().delete()
+
+
+class OTP(models.Model):
+    otp_code = models.CharField(
+        max_length=12,
+        validators=[
+            RegexValidator(
+                regex=r"^\d{1,12}$",
+                message="OTP code must contain only digits.",
+            )
+        ],
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    objects = OTPQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @classmethod
+    def expiration_cutoff(cls):
+        ttl_seconds = getattr(settings, "OTP_TTL_SECONDS", 120)
+        return timezone.now() - timedelta(seconds=ttl_seconds)
+
+    def __str__(self) -> str:
+        return self.otp_code
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -18,19 +18,34 @@ All Persian-language error messages, the same error_type taxonomy, and the
 same required-field lists as the old synchronous views are preserved.
 """
 
+import mimetypes
+
 from django.conf import settings
-from rest_framework import permissions, status
-from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import FileResponse
+
+from rest_framework import generics, permissions, status
+from rest_framework.exceptions import NotFound
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from core.schema import CUSTOMER_UPLOAD_SCHEMA, PRODUCT_UPLOAD_SCHEMA, COUPON_UPLOAD_SCHEMA, UPLOAD_JOB_STATUS_SCHEMA, SAMPLE_FILES_SCHEMA
-from core.models import Coupon
-from core.models import UploadJob
+
+from core.models import Coupon, UploadJob
+from core.schema import (
+    COUPON_UPLOAD_SCHEMA,
+    CUSTOMER_UPLOAD_SCHEMA,
+    PRODUCT_UPLOAD_SCHEMA,
+    SAMPLE_FILES_SCHEMA,
+    UPLOAD_HISTORY_SCHEMA,
+    UPLOAD_JOB_DOWNLOAD_SCHEMA,
+    UPLOAD_JOB_STATUS_SCHEMA,
+)
+from core.serializers_uploads import UploadHistorySerializer
 from core.services.storage import upload_fileobj_to_storage
 from core.tasks.uploads import (
+    process_coupons_upload,
     process_customers_upload,
     process_products_upload,
-    process_coupons_upload,
 )
 
 ALLOWED_EXTENSIONS = (".xlsx", ".xls")
@@ -359,6 +374,88 @@ class UploadJobStatusView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         return Response(job.to_status_dict(), status=status.HTTP_200_OK)
+
+
+@UPLOAD_HISTORY_SCHEMA
+class UploadHistoryView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UploadHistorySerializer
+    filter_backends = []
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return UploadJob.objects.none()
+        return UploadJob.objects.filter(
+            tenant=_tenant(self.request),
+            status=UploadJob.Status.SUCCESS,
+        ).select_related(
+            "customer_upload_record",
+            "product_upload_record",
+            "coupon_upload_record",
+        )
+
+
+def _uploaded_file_for_job(job: UploadJob):
+    relation_and_field = {
+        UploadJob.UploadType.CUSTOMERS: (
+            "customer_upload_record",
+            "customers_file",
+        ),
+        UploadJob.UploadType.PRODUCTS: (
+            "product_upload_record",
+            "products_file",
+        ),
+        UploadJob.UploadType.COUPONS: (
+            "coupon_upload_record",
+            "coupons_file",
+        ),
+    }
+    relation_name, field_name = relation_and_field[job.upload_type]
+    try:
+        upload_record = getattr(job, relation_name)
+    except ObjectDoesNotExist as exc:
+        raise NotFound("The original uploaded file is not available.") from exc
+    if upload_record.tenant_id != job.tenant_id:
+        raise NotFound("The original uploaded file is not available.")
+    file_field = getattr(upload_record, field_name)
+    if not file_field:
+        raise NotFound("The original uploaded file is not available.")
+    return file_field
+
+
+@UPLOAD_JOB_DOWNLOAD_SCHEMA
+class UploadJobDownloadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, job_id):
+        try:
+            job = UploadJob.objects.select_related(
+                "customer_upload_record",
+                "product_upload_record",
+                "coupon_upload_record",
+            ).get(
+                id=job_id,
+                tenant=_tenant(request),
+                status=UploadJob.Status.SUCCESS,
+            )
+        except UploadJob.DoesNotExist as exc:
+            raise NotFound("Upload not found.") from exc
+
+        file_field = _uploaded_file_for_job(job)
+        content_type = (
+            mimetypes.guess_type(job.original_filename)[0]
+            or "application/octet-stream"
+        )
+        try:
+            file_handle = file_field.open("rb")
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            raise NotFound("The original uploaded file is not available.") from exc
+        return FileResponse(
+            file_handle,
+            as_attachment=True,
+            filename=job.original_filename,
+            content_type=content_type,
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

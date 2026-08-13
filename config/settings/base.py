@@ -53,6 +53,7 @@ LOCAL_APPS = [
     "core.apps.CoreConfig",
     "users",
     "notifications",
+    "billing.apps.BillingConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -262,8 +263,6 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]",
     "COMPONENT_SPLIT_REQUEST": True,
     "SORT_OPERATIONS": False,
-    # Security scheme for Swagger UI
-    "SECURITY": [{"BearerAuth": []}],
     "SWAGGER_UI_SETTINGS": {
         "deepLinking": True,
         "persistAuthorization": True,

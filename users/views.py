@@ -8,9 +8,10 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView as BaseTokenRefreshView
 
 from core.exceptions import OTPError
-from core.schema import OTP_REQUEST_SCHEMA, OTP_VERIFY_SCHEMA, REGISTER_SCHEMA, LOGOUT_SCHEMA, PROFILE_SCHEMA, ACCOUNT_STATUS_SCHEMA
+from core.schema import OTP_REQUEST_SCHEMA, OTP_VERIFY_SCHEMA, REGISTER_SCHEMA, LOGOUT_SCHEMA, PROFILE_SCHEMA, ACCOUNT_STATUS_SCHEMA, TOKEN_REFRESH_SCHEMA
 from .auth.otp import OTPService
 from .serializers import (
     LogoutSerializer,
@@ -86,13 +87,13 @@ class OTPVerifyView(APIView):
         )
 
 
+@REGISTER_SCHEMA
 class RegisterView(generics.CreateAPIView):
     """POST /api/v1/auth/register/"""
 
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
 
-    @REGISTER_SCHEMA
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -108,6 +109,11 @@ class RegisterView(generics.CreateAPIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+@TOKEN_REFRESH_SCHEMA
+class TokenRefreshView(BaseTokenRefreshView):
+    pass
 
 
 @LOGOUT_SCHEMA

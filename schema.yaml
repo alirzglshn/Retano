@@ -18,7 +18,6 @@ paths:
       - Campaigns
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -50,7 +49,6 @@ paths:
       - Campaigns
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -71,6 +69,47 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
   /api/v1/campaigns/:
+    post:
+      operationId: campaigns_create
+      description: '`tenant` and `rule_number` are backend-controlled and ignored
+        if sent — tenant is always the authenticated user''s own tenant, and rule_number
+        auto-increments per tenant.'
+      summary: Create a campaign
+      tags:
+      - Campaigns
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CampaignRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
     get:
       operationId: campaigns_list
       description: Paginated, searchable, filterable, orderable list of the authenticated
@@ -109,55 +148,12 @@ paths:
       - Campaigns
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedCampaignListList'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    post:
-      operationId: campaigns_create
-      description: '`tenant` and `rule_number` are backend-controlled and ignored
-        if sent — tenant is always the authenticated user''s own tenant, and rule_number
-        auto-increments per tenant.'
-      summary: Create a campaign
-      tags:
-      - Campaigns
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CampaignRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CampaignRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CampaignRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - BearerAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Campaign'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
           description: ''
         '401':
           content:
@@ -182,7 +178,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
         required: true
       tags:
       - Campaigns
@@ -199,7 +195,6 @@ paths:
               $ref: '#/components/schemas/PatchedCampaignRequest'
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -241,7 +236,7 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
         required: true
       tags:
       - Campaigns
@@ -259,7 +254,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -294,13 +288,12 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
         required: true
       tags:
       - Campaigns
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -333,7 +326,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this campaign.
         required: true
       tags:
       - Campaigns
@@ -358,7 +352,6 @@ paths:
               $ref: '#/components/schemas/PatchedCampaignToggleRequest'
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -396,7 +389,6 @@ paths:
       - Dashboard
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -435,7 +427,6 @@ paths:
       - Reports
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -490,7 +481,6 @@ paths:
       - Reports
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -515,7 +505,6 @@ paths:
       - Reports
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -540,7 +529,6 @@ paths:
       - Reports
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -567,7 +555,6 @@ paths:
       - Reports
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -649,7 +636,6 @@ paths:
               - customers_gender
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '202':
           content:
@@ -726,7 +712,6 @@ paths:
               - products_product_link
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '202':
           content:
@@ -780,7 +765,6 @@ paths:
               - coupons_discount_percentage
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '202':
           content:
@@ -811,13 +795,50 @@ paths:
       - Uploads
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SampleFilesResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/uploads/history/:
+    get:
+      operationId: uploads_history_list
+      description: Returns only successful uploads belonging to the authenticated
+        user's tenant. Each item contains the completed polling result, the original
+        filename, the exact first-row Excel headers, and an authenticated download
+        URL.
+      summary: List successful upload history
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Uploads
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUploadHistoryItemResponseList'
           description: ''
         '401':
           content:
@@ -836,7 +857,6 @@ paths:
       - Sync Configuration
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -862,7 +882,6 @@ paths:
       - Sync Configuration
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -901,7 +920,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -933,7 +951,6 @@ paths:
       - Sync Configuration
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '201':
           content:
@@ -965,7 +982,6 @@ paths:
       - Sync (ETL)
       security:
       - syncApiKeyAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1011,7 +1027,6 @@ paths:
               - rows
       security:
       - syncApiKeyAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1055,7 +1070,6 @@ paths:
               - rows
       security:
       - syncApiKeyAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1101,7 +1115,6 @@ paths:
         required: true
       security:
       - syncApiKeyAuth: []
-      - BearerAuth: []
       responses:
         '201':
           content:
@@ -1141,7 +1154,6 @@ paths:
       - Uploads
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1160,6 +1172,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UploadJobNotFoundResponse'
+          description: ''
+  /api/v1/uploads/jobs/{job_id}/download/:
+    get:
+      operationId: uploads_jobs_download_retrieve
+      description: Downloads the exact file associated with a successful upload. The
+        job must belong to the authenticated user's tenant.
+      summary: Download a successful upload's original Excel file
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Uploads
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
   /api/v1/auth/otp/request/:
     post:
@@ -1185,7 +1234,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - BearerAuth: []
       - {}
       responses:
         '200':
@@ -1232,7 +1280,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - BearerAuth: []
       - {}
       responses:
         '200':
@@ -1250,9 +1297,13 @@ paths:
   /api/v1/auth/register/:
     post:
       operationId: auth_register_create
-      description: POST /api/v1/auth/register/
+      description: No authentication required. Alternate signup path to OTP verify's
+        implicit registration — only phone_number is actually required; first_name/last_name/shop_name
+        are optional up front and can be filled in later via PATCH /api/v1/profile/.
+        Fails with a validation error if the phone number is already registered.
+      summary: Explicit registration
       tags:
-      - auth
+      - Auth
       requestBody:
         content:
           application/json:
@@ -1267,14 +1318,19 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - BearerAuth: []
       - {}
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Register'
+                $ref: '#/components/schemas/RegisterResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
   /api/v1/auth/logout/:
     post:
@@ -1299,7 +1355,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '204':
           description: Logged out. No response body.
@@ -1318,11 +1373,13 @@ paths:
   /api/v1/auth/token/refresh/:
     post:
       operationId: auth_token_refresh_create
-      description: |-
-        Takes a refresh type JSON web token and returns an access type JSON web
-        token if the refresh token is valid.
+      description: No access token is required. Submit a valid refresh token. Because
+        refresh-token rotation is enabled, the response contains a new access token
+        and a replacement refresh token; the submitted refresh token is blacklisted
+        after successful rotation.
+      summary: Refresh a JWT access token
       tags:
-      - auth
+      - Auth
       requestBody:
         content:
           application/json:
@@ -1335,14 +1392,18 @@ paths:
             schema:
               $ref: '#/components/schemas/TokenRefreshRequest'
         required: true
-      security:
-      - BearerAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
   /api/v1/profile/:
     get:
@@ -1353,10 +1414,13 @@ paths:
       - Profile
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
         '401':
           content:
             application/json:
@@ -1384,10 +1448,13 @@ paths:
               $ref: '#/components/schemas/PatchedProfileRequest'
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
         '400':
           content:
             application/json:
@@ -1413,7 +1480,6 @@ paths:
       - Profile
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1439,7 +1505,6 @@ paths:
       - SMS / Billing
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1462,12 +1527,6 @@ paths:
         ever sees notifications addressed to them.
       summary: List this tenant's notifications
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: Which field to use when ordering the results.
-        schema:
-          type: string
       - name: page
         required: false
         in: query
@@ -1480,17 +1539,10 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
-      - name: search
-        required: false
-        in: query
-        description: A search term.
-        schema:
-          type: string
       tags:
       - Notifications
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1515,7 +1567,6 @@ paths:
       - Notifications
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
@@ -1548,13 +1599,301 @@ paths:
       - Notifications
       security:
       - jwtAuth: []
-      - BearerAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationDetailResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/billing/constants/:
+    get:
+      operationId: billing_constants_retrieve
+      description: Public pricing configuration for billing interfaces. Returns the
+        current price of one SMS, all seven SMS-count options with their discount
+        percentages, and the administrator-managed privileges text. No authentication
+        is required. Existing pending bills are recalculated when this configuration
+        changes; paid bills retain their snapshots.
+      summary: Get public billing constants
+      tags:
+      - Billing
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingConstant'
+          description: ''
+  /api/v1/billing/:
+    post:
+      operationId: billing_create
+      description: JSON input contains only sms_count. The tenant, billing ID, status,
+        unit price, discount, calculated prices, card number, and Bale ID are assigned
+        by the backend. Creation returns 409 while this tenant already has a pending
+        bill.
+      summary: Create a pending bill
+      tags:
+      - Billing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    get:
+      operationId: billing_list
+      description: Returns only bills belonging to the authenticated user's tenant,
+        newest first. Supports page and page_size pagination parameters. No search,
+        filtering, or client-selected ordering is supported.
+      summary: List this tenant's bills
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Billing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBillList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/billing/{billing_id}/:
+    patch:
+      operationId: billing_partial_update
+      description: The JSON body may contain only sms_count. Pricing is recalculated
+        server-side. Paid bills cannot be modified and return 409.
+      summary: Change a pending bill's SMS count
+      parameters:
+      - in: path
+        name: billing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Billing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBillRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBillRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBillRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    delete:
+      operationId: billing_destroy
+      description: Deletes a bill belonging to the authenticated user's tenant. Paid
+        bills are retained and return 409.
+      summary: Delete a pending bill
+      parameters:
+      - in: path
+        name: billing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Billing
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Deleted. No response body.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    put:
+      operationId: billing_update
+      description: The JSON body must contain only sms_count. Pricing is recalculated
+        server-side. Paid bills cannot be modified and return 409.
+      summary: Replace the editable bill data
+      parameters:
+      - in: path
+        name: billing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Billing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BillRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    get:
+      operationId: billing_retrieve
+      description: Looks up the public billing_id within the authenticated user's
+        tenant. A bill owned by another tenant returns 404.
+      summary: Retrieve a bill by billing ID
+      parameters:
+      - in: path
+        name: billing_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Billing
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bill'
           description: ''
         '401':
           content:
@@ -1634,6 +1973,115 @@ components:
       - inactive_count
       - inactive_percent
       - total_users
+    Bill:
+      type: object
+      properties:
+        billing_id:
+          type: string
+          readOnly: true
+        sms_unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,20}(?:\.\d{0,0})?$
+          readOnly: true
+        sms_count:
+          allOf:
+          - $ref: '#/components/schemas/SmsCountEnum'
+          minimum: 0
+          maximum: 2147483647
+        discount_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        discount_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,20}(?:\.\d{0,0})?$
+          readOnly: true
+        actual_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,20}(?:\.\d{0,0})?$
+          readOnly: true
+        final_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,20}(?:\.\d{0,0})?$
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BillStatusEnum'
+          readOnly: true
+        card_number:
+          type: string
+          readOnly: true
+        bale_id:
+          type: string
+          readOnly: true
+      required:
+      - actual_price
+      - bale_id
+      - billing_id
+      - card_number
+      - discount_amount
+      - discount_percentage
+      - final_price
+      - sms_count
+      - sms_unit_price
+      - status
+    BillRequest:
+      type: object
+      properties:
+        sms_count:
+          allOf:
+          - $ref: '#/components/schemas/SmsCountEnum'
+          minimum: 0
+          maximum: 2147483647
+      required:
+      - sms_count
+    BillStatusEnum:
+      enum:
+      - pending
+      - paid
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `paid` - Paid
+    BillingConstant:
+      type: object
+      properties:
+        sms_unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,20}(?:\.\d{0,0})?$
+          readOnly: true
+        packages:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingPackage'
+          readOnly: true
+        privileges:
+          type: string
+          readOnly: true
+      required:
+      - packages
+      - privileges
+      - sms_unit_price
+    BillingPackage:
+      type: object
+      properties:
+        sms_count:
+          type: integer
+          readOnly: true
+        discount_percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - discount_percentage
+      - sms_count
     BlankEnum:
       enum:
       - ''
@@ -2617,6 +3065,39 @@ components:
       - phone_number
       - refresh
       - user_id
+    PaginatedBillList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - total_pages
+      - current_page
+      - results
+      properties:
+        count:
+          type: integer
+          description: Total number of items across all pages.
+        next:
+          type: string
+          nullable: true
+          format: uri
+          description: URL of the next page, or null.
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          description: URL of the previous page, or null.
+        total_pages:
+          type: integer
+          description: Total number of pages.
+        current_page:
+          type: integer
+          description: Current page number.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bill'
     PaginatedCampaignListList:
       type: object
       required:
@@ -2683,6 +3164,47 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NotificationListItemResponse'
+    PaginatedUploadHistoryItemResponseList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - total_pages
+      - current_page
+      - results
+      properties:
+        count:
+          type: integer
+          description: Total number of items across all pages.
+        next:
+          type: string
+          nullable: true
+          format: uri
+          description: URL of the next page, or null.
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          description: URL of the previous page, or null.
+        total_pages:
+          type: integer
+          description: Total number of pages.
+        current_page:
+          type: integer
+          description: Current page number.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UploadHistoryItemResponse'
+    PatchedBillRequest:
+      type: object
+      properties:
+        sms_count:
+          allOf:
+          - $ref: '#/components/schemas/SmsCountEnum'
+          minimum: 0
+          maximum: 2147483647
     PatchedCampaignRequest:
       type: object
       description: |-
@@ -2859,18 +3381,41 @@ components:
         * `متوسط` - متوسط
         * `پایین` - پایین
         * `خیلی پایین` - خیلی پایین
-    Register:
+    Profile:
       type: object
       description: |-
-        POST /api/v1/auth/register/
+        GET/PATCH /api/v1/profile/
 
-        Creates a CustomUser from a phone number. Optional profile fields may
-        be supplied up front; everything else is filled in later via
-        /api/v1/profile/. Saving triggers the existing post_save signal on
-        CustomUser, which creates the user's Tenant.
+        phone_number is intentionally read-only here: changing the auth
+        identifier is a security-sensitive operation (would need its own
+        OTP-reverification flow) and is out of scope for this endpoint.
+
+        profile_picture accepts multipart/form-data uploads — the global
+        DRF parser config in config/settings/base.py already includes
+        MultiPartParser and FormParser alongside JSONParser, so PATCHing
+        this field with an image works with no view-level changes.
+
+        business_domain is a fixed set of choices (حوزه کاری dropdown) —
+        see BUSINESS_DOMAIN_CHOICES in users/models.py for the current list.
       properties:
+        id:
+          type: integer
+          readOnly: true
         phone_number:
           type: string
+          readOnly: true
+          description: Iranian mobile number in E.164 form, e.g. +989121234567.
+        username:
+          type: string
+          nullable: true
+          description: Optional. Kept for Django admin and legacy compatibility. Authentication
+            uses phone_number.
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
         first_name:
           type: string
           nullable: true
@@ -2882,7 +3427,48 @@ components:
         shop_name:
           type: string
           maxLength: 255
+        website_address:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 500
+        position:
+          type: string
+          nullable: true
+          maxLength: 50
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+        about_me:
+          type: string
+          nullable: true
+        is_premium:
+          type: boolean
+          readOnly: true
+        profile_picture:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional avatar image shown in the sidebar (عکس پروفایل).
+        business_domain:
+          nullable: true
+          description: |-
+            Tenant's business category (حوزه کاری).
+
+            * `fashion_clothing` - مد و لباس
+            * `cosmetics_beauty` - لوازم آرایشی و بهداشتی
+            * `food_beverage` - غذا و نوشیدنی
+            * `home_kitchen` - لوازم خانه و آشپزخانه
+            * `digital_electronics` - لوازم دیجیتال و الکترونیک
+            * `other` - سایر
+          oneOf:
+          - $ref: '#/components/schemas/BusinessDomainEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
       required:
+      - id
+      - is_premium
       - phone_number
     RegisterRequest:
       type: object
@@ -2911,6 +3497,25 @@ components:
           maxLength: 255
       required:
       - phone_number
+    RegisterResponse:
+      type: object
+      description: 201 response for POST /api/v1/auth/register/.
+      properties:
+        user_id:
+          type: integer
+        phone_number:
+          type: string
+        access:
+          type: string
+          description: Simple JWT access token.
+        refresh:
+          type: string
+          description: Simple JWT refresh token.
+      required:
+      - access
+      - phone_number
+      - refresh
+      - user_id
     RetentionResponse:
       type: object
       properties:
@@ -3024,6 +3629,38 @@ components:
       required:
       - segments
       - total_users
+    SmsCountEnum:
+      enum:
+      - 1000
+      - 5000
+      - 25000
+      - 60000
+      - 150000
+      - 300000
+      - 500000
+      type: integer
+      description: |-
+        * `1000` - 1,000
+        * `5000` - 5,000
+        * `25000` - 25,000
+        * `60000` - 60,000
+        * `150000` - 150,000
+        * `300000` - 300,000
+        * `500000` - 500,000
+    Status166Enum:
+      enum:
+      - queued
+      - processing
+      - success
+      - partial
+      - failed
+      type: string
+      description: |-
+        * `queued` - queued
+        * `processing` - processing
+        * `success` - success
+        * `partial` - partial
+        * `failed` - failed
     StatusDecEnum:
       enum:
       - error
@@ -3170,9 +3807,11 @@ components:
           description: Max rows per POST from the ETL to the data ingest endpoints.
         latest_run_status:
           type: string
+          nullable: true
           readOnly: true
         latest_run_message:
           type: string
+          nullable: true
           readOnly: true
       required:
       - latest_run_message
@@ -3583,6 +4222,67 @@ components:
         * `file_error` - file_error
         * `mapping_error` - mapping_error
         * `duplicate_coupon_error` - duplicate_coupon_error
+    UploadHistoryItemResponse:
+      type: object
+      description: GET /api/v1/uploads/jobs/{job_id}/ — mirrors UploadJob.to_status_dict()
+        exactly.
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        upload_type:
+          $ref: '#/components/schemas/UploadTypeEnum'
+        status:
+          $ref: '#/components/schemas/Status166Enum'
+        total_rows:
+          type: integer
+          nullable: true
+          description: Null until the worker has finished counting rows in the file.
+        processed_rows:
+          type: integer
+        rows_saved:
+          type: integer
+        progress_percentage:
+          type: number
+          format: double
+          description: min(processed_rows, total_rows) / total_rows * 100, rounded
+            to 2dp. 0.0 while total_rows is still null.
+        error_type:
+          type: string
+          nullable: true
+        message:
+          type: string
+          description: Persian status/result message.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        original_filename:
+          type: string
+        column_headers:
+          type: array
+          items:
+            type: string
+        download_url:
+          type: string
+          format: uri
+      required:
+      - column_headers
+      - created_at
+      - download_url
+      - error_type
+      - job_id
+      - message
+      - original_filename
+      - processed_rows
+      - progress_percentage
+      - rows_saved
+      - status
+      - total_rows
+      - updated_at
+      - upload_type
     UploadJobNotFoundResponse:
       type: object
       description: |-
@@ -3611,7 +4311,7 @@ components:
         upload_type:
           $ref: '#/components/schemas/UploadTypeEnum'
         status:
-          $ref: '#/components/schemas/UploadJobStatusResponseStatusEnum'
+          $ref: '#/components/schemas/Status166Enum'
         total_rows:
           type: integer
           nullable: true
@@ -3649,20 +4349,6 @@ components:
       - total_rows
       - updated_at
       - upload_type
-    UploadJobStatusResponseStatusEnum:
-      enum:
-      - queued
-      - processing
-      - success
-      - partial
-      - failed
-      type: string
-      description: |-
-        * `queued` - queued
-        * `processing` - processing
-        * `success` - success
-        * `partial` - partial
-        * `failed` - failed
     UploadTypeEnum:
       enum:
       - customers

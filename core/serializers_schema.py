@@ -409,6 +409,12 @@ class UploadJobStatusResponseSerializer(serializers.Serializer):
     updated_at = serializers.DateTimeField()
 
 
+class UploadHistoryItemResponseSerializer(UploadJobStatusResponseSerializer):
+    original_filename = serializers.CharField()
+    column_headers = serializers.ListField(child=serializers.CharField())
+    download_url = serializers.URLField()
+
+
 class UploadJobNotFoundResponseSerializer(serializers.Serializer):
     """
     404 response for GET /api/v1/uploads/jobs/{job_id}/ when the job does

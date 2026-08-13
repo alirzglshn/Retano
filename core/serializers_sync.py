@@ -107,11 +107,11 @@ class SyncConfigStatusSerializer(serializers.ModelSerializer):
             "latest_run_message",
         ]
 
-    def get_latest_run_status(self, obj):
+    def get_latest_run_status(self, obj) -> str | None:
         run = obj.tenant.sync_runs.first()
         return run.status if run else None
 
-    def get_latest_run_message(self, obj):
+    def get_latest_run_message(self, obj) -> str | None:
         run = obj.tenant.sync_runs.first()
         return run.user_facing_message if run else None
 

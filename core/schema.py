@@ -5,6 +5,7 @@ in the project.
 """
 
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 
 from drf_spectacular.utils import (
     OpenApiExample,
@@ -45,6 +46,7 @@ from core.serializers_schema import (
     TrendsYearlyResponseSerializer,
     UploadAcceptedResponseSerializer,
     UploadErrorResponseSerializer,
+    UploadHistoryItemResponseSerializer,
     UploadJobNotFoundResponseSerializer,
     UploadJobStatusResponseSerializer,
 )
@@ -66,6 +68,7 @@ from users.serializers import (
     LogoutSerializer,
     OTPRequestSerializer,
     OTPVerifySerializer,
+    ProfileSerializer,
 )
 
 
@@ -148,6 +151,13 @@ CAMPAIGN_VIEWSET_SCHEMA = extend_schema_view(
             "never 403 — its existence is not revealed to a tenant that "
             "does not own it."
         ),
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+            )
+        ],
         responses={
             200: CampaignSerializer,
             401: ErrorResponseSerializer,
@@ -157,6 +167,13 @@ CAMPAIGN_VIEWSET_SCHEMA = extend_schema_view(
     update=extend_schema(
         tags=["Campaigns"],
         summary="Replace a campaign (full update)",
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+            )
+        ],
         request=CampaignSerializer,
         responses={
             200: CampaignSerializer,
@@ -168,6 +185,13 @@ CAMPAIGN_VIEWSET_SCHEMA = extend_schema_view(
     partial_update=extend_schema(
         tags=["Campaigns"],
         summary="Partially update a campaign",
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+            )
+        ],
         request=CampaignSerializer,
         responses={
             200: CampaignSerializer,
@@ -510,6 +534,37 @@ UPLOAD_JOB_STATUS_SCHEMA = extend_schema(
     },
 )
 """Applied directly above UploadJobStatusView in core/views_uploads.py."""
+
+
+UPLOAD_HISTORY_SCHEMA = extend_schema(
+    tags=["Uploads"],
+    summary="List successful upload history",
+    description=(
+        "Returns only successful uploads belonging to the authenticated "
+        "user's tenant. Each item contains the completed polling result, "
+        "the original filename, the exact first-row Excel headers, and an "
+        "authenticated download URL."
+    ),
+    responses={
+        200: UploadHistoryItemResponseSerializer(many=True),
+        401: ErrorResponseSerializer,
+    },
+)
+
+
+UPLOAD_JOB_DOWNLOAD_SCHEMA = extend_schema(
+    tags=["Uploads"],
+    summary="Download a successful upload's original Excel file",
+    description=(
+        "Downloads the exact file associated with a successful upload. "
+        "The job must belong to the authenticated user's tenant."
+    ),
+    responses={
+        (200, "application/octet-stream"): OpenApiTypes.BINARY,
+        401: ErrorResponseSerializer,
+        404: ErrorResponseSerializer,
+    },
+)
 
 
 SAMPLE_FILES_SCHEMA = extend_schema(
@@ -1015,6 +1070,23 @@ REGISTER_SCHEMA = extend_schema(
 """Applied above RegisterView.create in users/views.py."""
 
 
+TOKEN_REFRESH_SCHEMA = extend_schema(
+    tags=["Auth"],
+    summary="Refresh a JWT access token",
+    description=(
+        "No access token is required. Submit a valid refresh token. Because "
+        "refresh-token rotation is enabled, the response contains a new access "
+        "token and a replacement refresh token; the submitted refresh token is "
+        "blacklisted after successful rotation."
+    ),
+    request=TokenRefreshSerializer,
+    responses={
+        200: TokenRefreshSerializer,
+        401: ErrorResponseSerializer,
+    },
+)
+
+
 LOGOUT_SCHEMA = extend_schema(
     tags=["Auth"],
     summary="Log out (blacklist a refresh token)",
@@ -1038,7 +1110,7 @@ PROFILE_SCHEMA = extend_schema_view(
     get=extend_schema(
         tags=["Profile"],
         summary="Get the authenticated user's own profile",
-        responses={200: None, 401: ErrorResponseSerializer},
+        responses={200: ProfileSerializer, 401: ErrorResponseSerializer},
     ),
     patch=extend_schema(
         tags=["Profile"],
@@ -1049,7 +1121,11 @@ PROFILE_SCHEMA = extend_schema_view(
             "read-only on this serializer — sending them is silently "
             "ignored, not rejected."
         ),
-        responses={200: None, 400: ErrorResponseSerializer, 401: ErrorResponseSerializer},
+        responses={
+            200: ProfileSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+        },
     ),
     put=extend_schema(exclude=True),
 )

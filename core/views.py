@@ -55,6 +55,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
     ordering = ["-created_at"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Campaign.objects.none()
         return Campaign.objects.filter(tenant__owner=self.request.user)
 
     def get_serializer_class(self):

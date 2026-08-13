@@ -38,6 +38,7 @@ from rest_framework import status
 from rest_framework.exceptions import APIException
 
 from core.exceptions import OTPError
+from users.models import OTP
 
 from .sms import OTPSender, get_default_sender
 
@@ -83,6 +84,17 @@ def _attempts_key(phone: str) -> str:
 
 def _cooldown_key(phone: str) -> str:
     return f"otp:cooldown:{phone}"
+
+
+def _record_key(phone: str) -> str:
+    return f"otp:record:{phone}"
+
+
+def _delete_otp_record(phone: str) -> None:
+    record_id = cache.get(_record_key(phone))
+    if record_id is not None:
+        OTP.objects.filter(pk=record_id).delete()
+    cache.delete(_record_key(phone))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -134,9 +146,15 @@ class OTPService:
             timeout=self._cooldown,
         )
 
+        OTP.objects.purge_expired()
+        otp = OTP.objects.create(otp_code=code)
+        cache.set(_record_key(phone_number), otp.pk, timeout=self._ttl)
+
         try:
             self._sender.send(phone_number=phone_number, code=code)
         except Exception:
+            OTP.objects.filter(pk=otp.pk).delete()
+            cache.delete(_record_key(phone_number))
             cache.delete(_code_key(phone_number))
             cache.delete(_attempts_key(phone_number))
             # We keep the cooldown so retries are still throttled.
@@ -163,10 +181,12 @@ class OTPService:
         """
         stored = cache.get(_code_key(phone_number))
         if stored is None:
+            _delete_otp_record(phone_number)
             raise OTPError("The OTP has expired. Request a new one.")
 
         attempts = cache.get(_attempts_key(phone_number)) or 0
         if attempts >= self._max_attempts:
+            _delete_otp_record(phone_number)
             cache.delete(_code_key(phone_number))
             cache.delete(_attempts_key(phone_number))
             raise OTPError(
@@ -176,13 +196,17 @@ class OTPService:
         # Constant-time compare avoids leaking timing information.
         if not secrets.compare_digest(str(stored), str(code).strip()):
             try:
-                cache.incr(_attempts_key(phone_number))
+                attempts = cache.incr(_attempts_key(phone_number))
             except ValueError:
+                _delete_otp_record(phone_number)
                 # Key vanished between get and incr — treat as expired.
                 raise OTPError("The OTP has expired. Request a new one.")
+            if attempts >= self._max_attempts:
+                _delete_otp_record(phone_number)
             raise OTPError("The OTP is incorrect.")
 
         # Success — burn the code so it cannot be replayed.
+        _delete_otp_record(phone_number)
         cache.delete(_code_key(phone_number))
         cache.delete(_attempts_key(phone_number))
 
