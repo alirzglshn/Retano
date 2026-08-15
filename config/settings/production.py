@@ -19,10 +19,11 @@ ALLOWED_HOSTS = [
     "retano360.com",
     "www.retano360.com",
     "api.retano360.com",
+    "app.retano360.com", 
+
     "127.0.0.1",
     "localhost",
     "176.97.218.53",
-
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://www.retano360.com",
     "https://panel.retano360.com",
     "https://api.retano360.com",
+    "https://app.retano360.com",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
