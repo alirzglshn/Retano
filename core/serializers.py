@@ -1,7 +1,17 @@
 # core/serializers.py
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import Campaign
+
+
+class DecimalChoiceField(serializers.ChoiceField):
+    """Return model choice values as Decimal instances."""
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        return Decimal(str(value))
 
 
 class CampaignListSerializer(serializers.ModelSerializer):
@@ -37,6 +47,12 @@ class CampaignSerializer(serializers.ModelSerializer):
           accepted from the client.
         * rule_number is auto-incremented per-tenant in Campaign.save().
     """
+
+    coupon_discount_percentage = DecimalChoiceField(
+        choices=Campaign.COUPON_DISCOUNT_PERCENTAGE_CHOICES,
+        allow_null=True,
+        required=False,
+    )
 
     class Meta:
         model = Campaign
