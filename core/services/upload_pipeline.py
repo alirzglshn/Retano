@@ -24,26 +24,28 @@ Return shape (both success and error):
 """
 
 import pandas as pd
+
 from django.db import connection, transaction
 
 from core.models import (
     Coupon,
+    CouponFileUpload,
     CustomerFileUpload,
     ProductFileUpload,
-    CouponFileUpload,
-    UsersUnNormalizedDataStaging,
     ProductsUnNormalizedDataStaging,
+    UsersUnNormalizedDataStaging,
 )
+from core.services.global_identity import resolve_identities
 from core.utils.excel_mapper import (
+    CouponExcelMapper,
     CustomerExcelMapper,
     ProductExcelMapper,
-    CouponExcelMapper,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Customers pipeline
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def process_customers(tenant, customers_file, customers_mapping: dict) -> dict:
     """
@@ -99,38 +101,15 @@ def process_customers(tenant, customers_file, customers_mapping: dict) -> dict:
 
     customers_df["internal_id"] = customers_df["internal_id"].astype(str)
     customers_df["internal_order_id"] = customers_df["internal_order_id"].astype(str)
-    customers_df["internal_product_id"] = customers_df["internal_product_id"].astype(str)
+    customers_df["internal_product_id"] = customers_df["internal_product_id"].astype(
+        str
+    )
 
     # ── Allocate globally-unique user_ids ─────────────────────────────────
     unique_internal_ids = (
         customers_df[["internal_id"]].drop_duplicates()["internal_id"].tolist()
     )
-    user_id_mapping: dict = {}
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT DISTINCT internal_user_id, user_id
-            FROM users_unnormalized_data
-            WHERE tenant_id = %s
-              AND internal_user_id = ANY(%s)
-            """,
-            [tenant.id, unique_internal_ids],
-        )
-        for internal_id, uid in cursor.fetchall():
-            user_id_mapping[internal_id] = uid
-
-    new_internal_ids = [
-        iid for iid in unique_internal_ids if iid not in user_id_mapping
-    ]
-    if new_internal_ids:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT nextval('global_user_id_seq') FROM generate_series(1, %s)",
-                [len(new_internal_ids)],
-            )
-            for internal_id, (new_id,) in zip(new_internal_ids, cursor.fetchall()):
-                user_id_mapping[internal_id] = new_id
+    user_id_mapping = resolve_identities("user", tenant.id, unique_internal_ids)
 
     # ── Allocate globally-unique order_ids ────────────────────────────────
     unique_internal_order_ids = (
@@ -138,34 +117,16 @@ def process_customers(tenant, customers_file, customers_mapping: dict) -> dict:
         .drop_duplicates()["internal_order_id"]
         .tolist()
     )
-    order_id_mapping: dict = {}
+    order_id_mapping = resolve_identities("order", tenant.id, unique_internal_order_ids)
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT DISTINCT internal_order_id, order_id
-            FROM users_unnormalized_data
-            WHERE tenant_id = %s
-              AND internal_order_id = ANY(%s)
-            """,
-            [tenant.id, unique_internal_order_ids],
-        )
-        for internal_order_id, oid in cursor.fetchall():
-            order_id_mapping[internal_order_id] = oid
-
-    new_internal_order_ids = [
-        iid for iid in unique_internal_order_ids if iid not in order_id_mapping
-    ]
-    if new_internal_order_ids:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT nextval('global_order_id_seq') FROM generate_series(1, %s)",
-                [len(new_internal_order_ids)],
-            )
-            for internal_order_id, (new_id,) in zip(
-                new_internal_order_ids, cursor.fetchall()
-            ):
-                order_id_mapping[internal_order_id] = new_id
+    unique_internal_product_ids = (
+        customers_df[["internal_product_id"]]
+        .drop_duplicates()["internal_product_id"]
+        .tolist()
+    )
+    product_id_mapping = resolve_identities(
+        "product", tenant.id, unique_internal_product_ids
+    )
 
     # ── Build staging objects ─────────────────────────────────────────────
     staging_objects = []
@@ -187,11 +148,7 @@ def process_customers(tenant, customers_file, customers_mapping: dict) -> dict:
             then_price = 0.0
 
         try:
-            qty = (
-                int(row["quantity"])
-                if pd.notna(row.get("quantity"))
-                else 0
-            )
+            qty = int(row["quantity"]) if pd.notna(row.get("quantity")) else 0
         except (ValueError, TypeError):
             qty = 0
 
@@ -214,7 +171,7 @@ def process_customers(tenant, customers_file, customers_mapping: dict) -> dict:
                     row["order_date"] if pd.notna(row.get("order_date")) else None
                 ),
                 internal_product_id=internal_product_id,
-                product_id=None,
+                product_id=product_id_mapping[internal_product_id],
                 then_product_price=then_price,
                 quantity=qty,
                 subtotal=None,
@@ -265,6 +222,7 @@ def process_customers(tenant, customers_file, customers_mapping: dict) -> dict:
 # Products pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def process_products(tenant, products_file, products_mapping: dict) -> dict:
     is_valid, error_msg = ProductExcelMapper.validate_mapping_integrity(
         products_mapping
@@ -308,9 +266,7 @@ def process_products(tenant, products_file, products_mapping: dict) -> dict:
 
     rows_processed = len(products_df)
 
-    products_df["internal_product_id"] = (
-        products_df["internal_product_id"].astype(str)
-    )
+    products_df["internal_product_id"] = products_df["internal_product_id"].astype(str)
 
     # ── Allocate globally-unique product_ids ──────────────────────────────
     unique_internal_product_ids = (
@@ -318,36 +274,9 @@ def process_products(tenant, products_file, products_mapping: dict) -> dict:
         .drop_duplicates()["internal_product_id"]
         .tolist()
     )
-    product_id_mapping: dict = {}
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT DISTINCT internal_product_id, product_id
-            FROM products_unnormalized_data
-            WHERE tenant_id = %s
-              AND internal_product_id = ANY(%s)
-            """,
-            [tenant.id, unique_internal_product_ids],
-        )
-        for internal_product_id, pid in cursor.fetchall():
-            product_id_mapping[internal_product_id] = pid
-
-    new_internal_product_ids = [
-        iid
-        for iid in unique_internal_product_ids
-        if iid not in product_id_mapping
-    ]
-    if new_internal_product_ids:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT nextval('global_product_id_seq') FROM generate_series(1, %s)",
-                [len(new_internal_product_ids)],
-            )
-            for internal_product_id, (new_id,) in zip(
-                new_internal_product_ids, cursor.fetchall()
-            ):
-                product_id_mapping[internal_product_id] = new_id
+    product_id_mapping = resolve_identities(
+        "product", tenant.id, unique_internal_product_ids
+    )
 
     def _attr_value(row, field_name):
         val = row.get(field_name)
@@ -432,6 +361,7 @@ def process_products(tenant, products_file, products_mapping: dict) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Coupons pipeline
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def process_coupons(tenant, coupons_file, coupons_mapping: dict) -> dict:
     # Duplicate coupon guard — unchanged from SSR

@@ -69,6 +69,7 @@ from core.models import (
     ProductsUnNormalizedDataStaging,
     UsersUnNormalizedDataStaging,
 )
+from core.services.global_identity import resolve_identity
 from core.sync.coercion import CoercionError, coerce_field
 from core.sync.field_registry import get_field_specs
 
@@ -107,7 +108,9 @@ class IngestResult:
         }
 
 
-def _coerce_row(entity: Entity, raw_row: dict, row_index: int, result: IngestResult) -> dict | None:
+def _coerce_row(
+    entity: Entity, raw_row: dict, row_index: int, result: IngestResult
+) -> dict | None:
     """
     Coerces every field in a single raw row per the field registry.
     Returns the cleaned dict, or None if the row must be rejected
@@ -115,7 +118,9 @@ def _coerce_row(entity: Entity, raw_row: dict, row_index: int, result: IngestRes
     """
     specs = get_field_specs(entity)
     cleaned: dict[str, Any] = {}
-    internal_id_field = "internal_user_id" if entity == "user" else "internal_product_id"
+    internal_id_field = (
+        "internal_user_id" if entity == "user" else "internal_product_id"
+    )
     internal_id_value = raw_row.get(internal_id_field)
 
     for spec in specs:
@@ -179,10 +184,21 @@ def _fetch_permanent_user(
         if row is None:
             return None
         columns = [
-            "internal_user_id", "user_id", "first_name", "last_name", "gender",
-            "phone_number", "internal_order_id", "order_id", "order_date",
-            "internal_product_id", "product_id", "then_product_price",
-            "quantity", "subtotal", "column_mapping",
+            "internal_user_id",
+            "user_id",
+            "first_name",
+            "last_name",
+            "gender",
+            "phone_number",
+            "internal_order_id",
+            "order_id",
+            "order_date",
+            "internal_product_id",
+            "product_id",
+            "then_product_price",
+            "quantity",
+            "subtotal",
+            "column_mapping",
         ]
         return dict(zip(columns, row))
 
@@ -202,42 +218,18 @@ def _delete_permanent_user(
         )
 
 
-def _next_global_id(sequence_name: str) -> int:
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT nextval(%s)", [sequence_name])
-        return cursor.fetchone()[0]
-
-
-def _resolve_user_and_order_ids(tenant_id: int, internal_user_id: str, internal_order_id: str) -> tuple[int, int]:
+def _resolve_user_and_order_ids(
+    tenant_id: int, internal_user_id: str, internal_order_id: str
+) -> tuple[int, int]:
     """
-    Mirrors the ID-allocation strategy already used in
-    core/services/upload_pipeline.py (global sequences, reused if the
-    internal_id has already been seen for this tenant).
+    Uses the same persistent identity registries as file uploads. The mapping
+    survives staging/permanent-flat-table cleanup and is protected by unique
+    constraints at the database layer.
     """
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT user_id FROM users_unnormalized_data
-            WHERE tenant_id = %s AND internal_user_id = %s
-            LIMIT 1
-            """,
-            [tenant_id, internal_user_id],
-        )
-        row = cursor.fetchone()
-        user_id = row[0] if row else _next_global_id("global_user_id_seq")
-
-        cursor.execute(
-            """
-            SELECT order_id FROM users_unnormalized_data
-            WHERE tenant_id = %s AND internal_order_id = %s
-            LIMIT 1
-            """,
-            [tenant_id, internal_order_id],
-        )
-        row = cursor.fetchone()
-        order_id = row[0] if row else _next_global_id("global_order_id_seq")
-
-    return user_id, order_id
+    return (
+        resolve_identity("user", tenant_id, internal_user_id),
+        resolve_identity("order", tenant_id, internal_order_id),
+    )
 
 
 def ingest_user_rows(tenant, raw_rows: list[dict]) -> IngestResult:
@@ -353,9 +345,15 @@ def _fetch_permanent_product(tenant_id: int, internal_product_id: str) -> dict |
         if row is None:
             return None
         columns = [
-            "internal_product_id", "product_id", "product_name", "category",
-            "current_product_price", "product_link", "first_product_attribute",
-            "second_product_attribute", "column_mapping",
+            "internal_product_id",
+            "product_id",
+            "product_name",
+            "category",
+            "current_product_price",
+            "product_link",
+            "first_product_attribute",
+            "second_product_attribute",
+            "column_mapping",
         ]
         return dict(zip(columns, row))
 
@@ -372,19 +370,7 @@ def _delete_permanent_product(tenant_id: int, internal_product_id: str) -> None:
 
 
 def _resolve_product_id(tenant_id: int, internal_product_id: str) -> int:
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT product_id FROM products_unnormalized_data
-            WHERE tenant_id = %s AND internal_product_id = %s
-            LIMIT 1
-            """,
-            [tenant_id, internal_product_id],
-        )
-        row = cursor.fetchone()
-        if row:
-            return row[0]
-    return _next_global_id("global_product_id_seq")
+    return resolve_identity("product", tenant_id, internal_product_id)
 
 
 def ingest_product_rows(tenant, raw_rows: list[dict]) -> IngestResult:

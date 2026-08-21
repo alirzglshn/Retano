@@ -356,6 +356,13 @@ SUPABASE_UPLOAD_BUCKET = os.environ.get("SUPABASE_UPLOAD_BUCKET", "upload-stagin
 # Chunk size for reading Excel rows and COPYing into staging.
 UPLOAD_CHUNK_SIZE = int(os.environ.get("UPLOAD_CHUNK_SIZE", "50000"))
 
+# Allocation + normalization for very large uploads is intentionally one
+# atomic database phase.  This value is applied with transaction-local
+# set_config() by the worker, so it really covers the following SQL calls.
+UPLOAD_DB_STATEMENT_TIMEOUT_MS = int(
+    os.environ.get("UPLOAD_DB_STATEMENT_TIMEOUT_MS", str(2 * 60 * 60 * 1000))
+)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Campaign SMS (send + delivery tracking) — Campaign Detail phase
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1,14 +1,14 @@
 # core/models.py
 
+import hashlib
+import secrets
+import uuid
+
 from django.conf import settings
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-import uuid
-import hashlib
-import secrets
 from django.utils import timezone
-
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
@@ -17,17 +17,11 @@ def create_tenant_for_new_user(sender, instance, created, **kwargs):
         Tenant.objects.get_or_create(owner=instance)
 
 
-
 class Tenant(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"Tenant #{self.id} — {self.owner}"
-
-
-
-
-
 
 
 class UploadJob(models.Model):
@@ -107,7 +101,9 @@ class UploadJob(models.Model):
     def progress_percentage(self) -> float:
         if not self.total_rows:
             return 0.0
-        return round(min(self.processed_rows, self.total_rows) / self.total_rows * 100, 2)
+        return round(
+            min(self.processed_rows, self.total_rows) / self.total_rows * 100, 2
+        )
 
     def to_status_dict(self) -> dict:
         """Shape returned by GET /api/v1/uploads/jobs/{id}/"""
@@ -124,9 +120,6 @@ class UploadJob(models.Model):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
-
-
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -349,7 +342,7 @@ class Campaign(models.Model):
         blank=True,
         verbose_name="ویژگی دوم محصول",
     )
-   
+
     is_active = models.BooleanField(default=True)
     description = models.TextField(blank=True, default="")
     message_pattern = models.TextField(default="الگوی پیام")
@@ -382,15 +375,16 @@ class Campaign(models.Model):
 class UsersUnNormalizedData(models.Model):
     """
     Permanent flat store for the customers-file pipeline.
-    product_id is NULL until the products file is uploaded and the Postgres
-    flush function backfills it via internal_product_id.
+    All three public IDs are assigned from persistent global identity maps.
+    Product metadata may arrive later, but product_id is established by the
+    customer upload itself and is never tenant-local.
     subtotal is computed in Postgres as quantity * then_product_price.
     """
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
 
     internal_user_id = models.TextField(default="null")
-    user_id = models.IntegerField()
+    user_id = models.BigIntegerField()
 
     first_name = models.CharField(max_length=200)
     last_name = models.TextField(null=True, blank=True)
@@ -398,11 +392,11 @@ class UsersUnNormalizedData(models.Model):
     phone_number = models.TextField(null=True, blank=True)
 
     internal_order_id = models.TextField(default="null")
-    order_id = models.IntegerField()
+    order_id = models.BigIntegerField()
     order_date = models.DateTimeField(null=True, blank=True)
 
     internal_product_id = models.TextField(default="null")
-    product_id = models.IntegerField(null=True, blank=True)
+    product_id = models.BigIntegerField()
 
     then_product_price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.IntegerField()
@@ -431,13 +425,24 @@ class UsersUnNormalizedDataStaging(models.Model):
     """
     Staging mirror of users_unnormalized_data.
     managed = False — created by RunSQL in migration 0044.
-    No triggers. Flushed via flush_customers_staging(p_tenant_id).
+    Rows created by file uploads are scoped to an UploadJob and flushed by
+    flush_customers_upload_job(p_job_id). Rows created by the direct-sync
+    pipeline retain a NULL upload_job and use the legacy tenant flush path.
     """
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    upload_job = models.ForeignKey(
+        UploadJob,
+        db_column="upload_job_id",
+        db_constraint=False,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="customer_staging_rows",
+    )
 
     internal_user_id = models.TextField(default="null")
-    user_id = models.IntegerField()
+    user_id = models.BigIntegerField(null=True, blank=True)
 
     first_name = models.CharField(max_length=200)
     last_name = models.TextField(null=True, blank=True)
@@ -445,11 +450,11 @@ class UsersUnNormalizedDataStaging(models.Model):
     phone_number = models.TextField(null=True, blank=True)
 
     internal_order_id = models.TextField(default="null")
-    order_id = models.IntegerField()
+    order_id = models.BigIntegerField(null=True, blank=True)
     order_date = models.DateTimeField(null=True, blank=True)
 
     internal_product_id = models.TextField(default="null")
-    product_id = models.IntegerField(null=True, blank=True)
+    product_id = models.BigIntegerField(null=True, blank=True)
 
     then_product_price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.IntegerField()
@@ -486,7 +491,7 @@ class ProductsUnNormalizedData(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
 
     internal_product_id = models.TextField(default="null")
-    product_id = models.IntegerField()
+    product_id = models.BigIntegerField()
 
     product_name = models.CharField(max_length=255)
     product_category = models.CharField(max_length=100)
@@ -518,13 +523,23 @@ class ProductsUnNormalizedDataStaging(models.Model):
     """
     Staging mirror of products_unnormalized_data.
     managed = False — created by RunSQL in migration 0044, altered in 0045.
-    No triggers. Flushed via flush_products_staging(p_tenant_id).
+    File-upload rows are scoped to an UploadJob. Direct-sync rows retain a
+    NULL upload_job for compatibility with the legacy tenant flush path.
     """
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    upload_job = models.ForeignKey(
+        UploadJob,
+        db_column="upload_job_id",
+        db_constraint=False,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="product_staging_rows",
+    )
 
     internal_product_id = models.TextField(default="null")
-    product_id = models.IntegerField()
+    product_id = models.BigIntegerField(null=True, blank=True)
 
     product_name = models.CharField(max_length=255)
     product_category = models.CharField(max_length=100)
@@ -621,11 +636,6 @@ class ErrorLog(models.Model):
             f"[{self.severity.upper()}] {self.source} | "
             f"{self.error_code or 'N/A'} | {self.created_at}"
         )
-
-
- 
-
-
 
 
 def _generate_raw_api_key() -> str:
