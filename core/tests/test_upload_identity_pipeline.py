@@ -147,6 +147,10 @@ class IdentitySqlContractTests(TestCase):
             "user_id IS NULL OR order_id IS NULL OR product_id IS NULL", self.sql
         )
         self.assertIn("fill_missing_flat_product_identity", self.sql)
+        self.assertLess(
+            self.sql.index("SET CONSTRAINTS ALL IMMEDIATE"),
+            self.sql.index("ALTER COLUMN product_id SET NOT NULL"),
+        )
         self.assertIn("ALTER COLUMN product_id SET NOT NULL", self.sql)
 
     def test_flush_is_job_scoped(self):

@@ -262,6 +262,11 @@ FOR EACH ROW
 WHEN (NEW.product_id IS NULL)
 EXECUTE FUNCTION fill_missing_flat_product_identity();
 
+-- The backfill above can queue events for the table's initially-deferred
+-- tenant FK. PostgreSQL refuses ALTER TABLE while those events are pending,
+-- so fire and validate them before enforcing the final NOT NULL invariant.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 ALTER TABLE users_unnormalized_data
     ALTER COLUMN product_id SET NOT NULL;
 
