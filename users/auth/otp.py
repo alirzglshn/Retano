@@ -3,7 +3,7 @@ OTP issuance, storage, and verification.
 
 Design
 ------
-* OTP codes are 6 random digits (``settings.OTP_LENGTH``).
+* OTP codes are 4 random digits (``settings.OTP_LENGTH``).
 * They live in the Django cache (Redis in prod) under a namespaced key,
   with a TTL of ``settings.OTP_TTL_SECONDS`` (default 120s).
 * Each phone number is rate-limited two ways:
@@ -51,7 +51,7 @@ logger = logging.getLogger("retano.auth.otp")
 # ─────────────────────────────────────────────────────────────────────────────
 
 DEFAULT_OTP_TTL_SECONDS = 120
-DEFAULT_OTP_LENGTH = 6
+DEFAULT_OTP_LENGTH = 4
 RESEND_COOLDOWN_SECONDS = 60
 MAX_VERIFY_ATTEMPTS = 5
 

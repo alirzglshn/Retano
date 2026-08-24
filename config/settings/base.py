@@ -54,6 +54,7 @@ LOCAL_APPS = [
     "users",
     "notifications",
     "billing.apps.BillingConfig",
+    "consultations.apps.ConsultationsConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -214,6 +215,7 @@ REST_FRAMEWORK = {
         "anon": "100/hour",
         "user": "1000/hour",
         "otp_request": "5/hour",  # used on the OTP endpoint specifically
+        "free_consult_create": "5/hour",
     },
 }
 
@@ -307,7 +309,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ─────────────────────────────────────────────────────────────────────────────
 
 OTP_TTL_SECONDS = int(os.environ.get("OTP_TTL_SECONDS", 120))  # 2 minutes
-OTP_LENGTH = 6
+OTP_LENGTH = 4
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Kavenegar

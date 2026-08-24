@@ -1010,7 +1010,7 @@ OTP_REQUEST_SCHEMA = extend_schema(
     tags=["Auth"],
     summary="Request an OTP code",
     description=(
-        "No authentication required. Sends a 6-digit code to the given "
+        "No authentication required. Sends a 4-digit code to the given "
         "phone number via the configured SMS provider (sms.ir by "
         "default; see OTP_PROVIDER). Rate-limited two ways: a per-phone "
         "resend cooldown (independent of DRF's own throttle_scope= "

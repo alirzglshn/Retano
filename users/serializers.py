@@ -41,7 +41,14 @@ class OTPVerifySerializer(serializers.Serializer):
     """
 
     phone_number = PhoneNumberField()
-    code = serializers.CharField(max_length=12, write_only=True)
+    code = serializers.RegexField(
+        regex=r"^[0-9]{4}$",
+        min_length=4,
+        max_length=4,
+        trim_whitespace=False,
+        write_only=True,
+        error_messages={"invalid": "OTP code must contain exactly 4 digits."},
+    )
 
     def create_tokens(self, user: CustomUser) -> dict:
         refresh = RefreshToken.for_user(user)

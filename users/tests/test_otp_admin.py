@@ -49,6 +49,8 @@ def admin_request(user):
 def test_successful_fake_issue_stores_exact_code():
     result = OTPService(sender=FakeOTPSender()).issue("+989120000013")
 
+    assert len(result.debug_code) == 4
+    assert result.debug_code.isdigit()
     assert OTP.objects.get().otp_code == result.debug_code
 
 
@@ -74,7 +76,7 @@ def test_successful_verification_removes_admin_copy():
 def test_exhausted_verification_attempts_remove_admin_copy():
     service = OTPService(sender=FakeOTPSender())
     result = service.issue("+989120000016")
-    wrong_code = "000000" if result.debug_code != "000000" else "111111"
+    wrong_code = "0000" if result.debug_code != "0000" else "1111"
 
     with pytest.raises(OTPError):
         service.verify("+989120000016", wrong_code)
@@ -102,7 +104,7 @@ def test_otp_admin_is_entirely_read_only(superuser):
 
 @override_settings(OTP_TTL_SECONDS=120)
 def test_expired_codes_are_purged_from_admin(superuser):
-    otp = OTP.objects.create(otp_code="123456")
+    otp = OTP.objects.create(otp_code="1234")
     OTP.objects.filter(pk=otp.pk).update(
         created_at=timezone.now() - timedelta(seconds=121)
     )

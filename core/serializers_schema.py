@@ -548,7 +548,10 @@ class OTPRequestResponseSerializer(serializers.Serializer):
     resend_in_seconds = serializers.IntegerField(
         help_text="Client must wait this long before requesting another OTP for this number."
     )
-    debug_code = serializers.CharField(
+    debug_code = serializers.RegexField(
+        regex=r"^[0-9]{4}$",
+        min_length=4,
+        max_length=4,
         required=False,
         help_text=(
             "DEV/TEST ONLY. Present only when the server has "

@@ -57,6 +57,7 @@ urlpatterns = [
     path("api/v1/", include("users.urls")),
     path("api/v1/", include("notifications.urls")),
     path("api/v1/", include("billing.urls")),
+    path("api/v1/", include("consultations.urls")),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1214,7 +1214,7 @@ paths:
     post:
       operationId: auth_otp_request_create
       description: |-
-        No authentication required. Sends a 6-digit code to the given phone number via the configured SMS provider (sms.ir by default; see OTP_PROVIDER). Rate-limited two ways: a per-phone resend cooldown (independent of DRF's own throttle_scope= 'otp_request' 5/hour limit) and a max-attempts counter enforced at verify time.
+        No authentication required. Sends a 4-digit code to the given phone number via the configured SMS provider (sms.ir by default; see OTP_PROVIDER). Rate-limited two ways: a per-phone resend cooldown (independent of DRF's own throttle_scope= 'otp_request' 5/hour limit) and a max-attempts counter enforced at verify time.
 
         debug_code is included in the response ONLY when the server is running with OTP_FAKE_MODE=True (local development only) — never rely on its presence.
       summary: Request an OTP code
@@ -1896,6 +1896,122 @@ paths:
                 $ref: '#/components/schemas/Bill'
           description: ''
         '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/free-consults/:
+    post:
+      operationId: free_consults_create
+      description: Public endpoint for submitting an Iranian phone number in either
+        09xxxxxxxxx or +989xxxxxxxxx format. Authentication is not required.
+      summary: Request a free consultation
+      tags:
+      - Free Consultations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FreeConsultRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FreeConsultRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FreeConsultRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreeConsult'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/free-consults/all/:
+    get:
+      operationId: free_consults_all_list
+      description: Returns every submitted phone number. Django superuser only.
+      summary: List all free consultation requests
+      tags:
+      - Free Consultations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FreeConsult'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/free-consults/by-id/:
+    get:
+      operationId: free_consults_by_id_retrieve
+      description: Returns one submitted phone number. Django superuser only.
+      summary: Get a free consultation request by ID
+      parameters:
+      - in: query
+        name: id
+        schema:
+          type: integer
+        description: Free consultation request ID.
+        required: true
+      tags:
+      - Free Consultations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreeConsult'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
           content:
             application/json:
               schema:
@@ -2867,6 +2983,29 @@ components:
       required:
       - message
       - status_code
+    FreeConsult:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        phone_number:
+          type: string
+          pattern: '^(?:09[0-9]{9}|\+989[0-9]{9})$'
+          maxLength: 13
+      required:
+      - id
+      - phone_number
+    FreeConsultRequest:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          pattern: '^(?:09[0-9]{9}|\+989[0-9]{9})$'
+          minLength: 1
+          maxLength: 13
+      required:
+      - phone_number
     FailureStageEnum:
       enum:
       - schema_table
@@ -3016,6 +3155,9 @@ components:
             this number.
         debug_code:
           type: string
+          pattern: ^[0-9]{4}$
+          minLength: 4
+          maxLength: 4
           description: DEV/TEST ONLY. Present only when the server has OTP_FAKE_MODE=True.
             Never present in production.
       required:
@@ -3037,8 +3179,9 @@ components:
         code:
           type: string
           writeOnly: true
-          minLength: 1
-          maxLength: 12
+          pattern: ^[0-9]{4}$
+          minLength: 4
+          maxLength: 4
       required:
       - code
       - phone_number
