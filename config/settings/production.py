@@ -18,9 +18,6 @@ ALLOWED_HOSTS = [
     "panel.retano360.com",
     "retano360.com",
     "www.retano360.com",
-    "api.retano360.com",
-    "app.retano360.com", 
-
     "127.0.0.1",
     "localhost",
     "185.81.96.206",
@@ -51,10 +48,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://retano360.com",
     "https://www.retano360.com",
     "https://panel.retano360.com",
-    "https://api.retano360.com",
-    "https://app.retano360.com",
 ]
-
 # ─────────────────────────────────────────────────────────────────────────────
 # CORS — whitelist only the React frontend origin
 # ─────────────────────────────────────────────────────────────────────────────

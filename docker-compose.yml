@@ -129,7 +129,7 @@ services:
       - media_volume:/app/media:ro
       - ./nginx/certbot/conf:/etc/letsencrypt:ro
       - ./nginx/certbot/www:/var/www/certbot:ro
-      - ./web:/usr/share/nginx/app:ro
+      - ./productionExecutable:/usr/share/nginx/app:ro
     depends_on:
       web:
         condition: service_healthy
