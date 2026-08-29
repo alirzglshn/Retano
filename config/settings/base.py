@@ -351,7 +351,7 @@ CELERY_TASK_ROUTES = {
 }
 
 # ── Supabase Storage (used by core/services/storage.py) ─────────────────────
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_URL = os.environ.get("API_EXTERNAL_URL", "")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_UPLOAD_BUCKET = os.environ.get("SUPABASE_UPLOAD_BUCKET", "upload-staging")
 
